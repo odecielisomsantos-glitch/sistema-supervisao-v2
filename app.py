@@ -1,10 +1,9 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-import plotly.graph_objects as go
 import base64
 
-# 1. CONFIGURAÇÃO DE LAYOUT E TEMA
+# 1. Configuração de Layout e Tema
 st.set_page_config(page_title="Equipe Atlas", page_icon="🌊", layout="wide", initial_sidebar_state="collapsed")
 
 if 'dark_mode' not in st.session_state:
@@ -13,41 +12,43 @@ if 'dark_mode' not in st.session_state:
 def toggle_theme():
     st.session_state.dark_mode = not st.session_state.dark_mode
 
-# Variáveis de Cores para Modo Noturno
+# Variáveis de Cores Adaptativas
 is_dark = st.session_state.dark_mode
 colors = {
     "bg": "#0E1117" if is_dark else "#FFFFFF",
     "text": "#F9FAFB" if is_dark else "#111827",
-    "card_bg": "#1F2937" if is_dark else "#FFFFFF",
+    "card_bg": "#1A1C23" if is_dark else "#FFFFFF",
     "border": "#30363D" if is_dark else "#E5E7EB",
     "info_bar": "#1F2937" if is_dark else "#F9FAFB",
-    "chart_line": "#F97316" # Laranja solicitado
+    "accent": "#F97316"
 }
 
-# 2. CSS PROFISSIONAL (Headers, Métricas e Coroas)
+# 2. CSS Blindado (Headers, Métricas e Coroas)
 st.markdown(f"""
     <style>
     header, footer, #MainMenu {{visibility: hidden;}}
-    .stApp {{ background: {colors['bg']}; font-family: 'Inter', sans-serif; transition: 0.2s; }}
+    .stApp {{ background: {colors['bg']}; font-family: 'Inter', sans-serif; transition: 0.1s; }}
     [data-testid="stSidebar"] {{ display: none; }}
     .main .block-container {{ padding: 0; max-width: 100%; }}
     
     .nav-main {{ position: fixed; top: 0; left: 0; width: 100%; height: 55px; background: {colors['bg']}; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; z-index: 1001; border-bottom: 1px solid {colors['border']}; }}
+    
     .metric-strip {{ margin-top: 55px; padding: 15px 40px; background: {colors['info_bar']}; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid {colors['border']}; }}
     .metric-box {{ text-align: center; }}
     .metric-label {{ font-size: 10px; color: {colors['text']}; opacity: 0.7; font-weight: 800; text-transform: uppercase; }}
     .metric-value {{ font-size: 16px; color: {colors['text']}; font-weight: 700; }}
-    .main-content {{ margin-top: 20px; padding: 0 40px; }}
+    
+    .main-content {{ margin-top: 20px; padding: 0 40px; color: {colors['text']}; }}
     
     .card {{ position: relative; background: {colors['card_bg']}; padding: 18px; border-radius: 16px; border: 1px solid {colors['border']}; text-align: center; margin-bottom: 30px; height: 190px; }}
     .crown {{ position: absolute; top: -18px; left: 35%; font-size: 24px; animation: float 3s infinite ease-in-out; }}
     @keyframes float {{ 0%, 100% {{ transform: translateY(0); }} 50% {{ transform: translateY(-7px) rotate(3deg); }} }}
+    
     .av {{ width: 50px; height: 50px; background: #22D3EE; color: #083344 !important; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: 800; }}
     .logout-btn {{ background: #EF4444; color: white !important; padding: 5px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px; text-decoration: none; }}
     </style>
 """, unsafe_allow_html=True)
 
-# Limpeza de Dados
 def clean_numeric(val):
     if pd.isna(val) or val == "" or str(val).strip() == "0%": return 0.0
     try:
@@ -58,7 +59,7 @@ def get_data(aba):
     conn = st.connection("gsheets", type=GSheetsConnection)
     return conn.read(worksheet=aba, ttl=0, header=None)
 
-# 3. SISTEMA DE LOGIN
+# --- LOGIN ---
 if 'auth' not in st.session_state: st.session_state.auth = False
 if not st.session_state.auth:
     col_l, _ = st.columns([1, 2])
@@ -74,7 +75,7 @@ if not st.session_state.auth:
                     st.rerun()
                 else: st.error("Dados incorretos.")
 
-# 4. DASHBOARD PRINCIPAL
+# --- DASHBOARD PRINCIPAL ---
 else:
     u = st.session_state.user
     p_nome = str(u['Nome']).upper().strip()
@@ -83,24 +84,23 @@ else:
     df_rel = get_data("RELATÓRIO")
     
     if df_raw is not None and df_rel is not None:
-        # Ranking Geral
         rk = df_raw.iloc[1:24, [0, 1]].dropna()
         rk.columns = ["Nome", "Meta_Str"]
         rk['Meta_Num'] = rk['Meta_Str'].apply(clean_numeric)
         rk = rk.sort_values(by='Meta_Num', ascending=False).reset_index(drop=True)
 
-        # 5. PROCESSAMENTO RELATÓRIO AJ1:BO24
-        # AJ é a coluna 36 (index 35)
+        # 3. Processamento RELATÓRIO AJ1:BO24 (Nativo)
         df_evol_slice = df_rel.iloc[0:24, 35:67].copy() 
         dates_header = df_evol_slice.iloc[0, 1:].tolist() # Datas AK1:BO1
         
-        # Filtro Robusto: Primeiro nome do operador na coluna AJ (index 0)
-        operator_row = df_evol_slice[df_evol_slice.iloc[:, 0].astype(str).str.upper().str.contains(p_nome.split()[0], na=False)]
+        # Filtro do Operador logado
+        p_match = p_nome.split()[0]
+        operator_row = df_evol_slice[df_evol_slice.iloc[:, 0].astype(str).str.upper().str.contains(p_match, na=False)]
         
-        u_rk_match = rk[rk['Nome'].astype(str).str.upper().str.contains(p_nome.split()[0], na=False)]
+        u_rk_match = rk[rk['Nome'].astype(str).str.upper().str.contains(p_match, na=False)]
         pos = f"{u_rk_match.index[0] + 1}º" if not u_rk_match.empty else "N/A"
 
-        # INTERFACE SUPERIOR
+        # 4. NAVBAR E MÉTRICAS
         st.markdown(f'''
             <div class="nav-main">
                 <div class="brand-logo"><span style="color:#F97316; font-weight:900; font-size:22px;">ATLAS</span></div>
@@ -112,47 +112,41 @@ else:
             <div class="metric-strip">
         ''', unsafe_allow_html=True)
         
-        mc0, mc1, mc2, mc3, mc4, mc5 = st.columns([0.5, 1.5, 1.5, 1.5, 2.5, 0.5])
-        with mc0: 
-            with st.popover("🔔"): st.info("Nenhuma nova notificação.")
-        with mc1: st.markdown(f'<div class="metric-box"><div class="metric-label">SUA COLOCAÇÃO</div><div class="metric-value">🏆 {pos}</div></div>', unsafe_allow_html=True)
-        with mc2: st.markdown(f'<div class="metric-box"><div class="metric-label">PERÍODO</div><div class="metric-value">JANEIRO / 2026</div></div>', unsafe_allow_html=True)
-        with mc3: st.markdown(f'<div class="metric-box"><div class="metric-label">STATUS</div><div class="metric-value">🟢 ONLINE</div></div>', unsafe_allow_html=True)
-        with mc4: st.markdown(f'<div class="metric-box"><div class="metric-label">UNIDADE</div><div class="metric-value">CALL CENTER PDF</div></div>', unsafe_allow_html=True)
-        with mc5: st.toggle("🌙", value=st.session_state.dark_mode, on_change=toggle_theme, key="dark_tgl")
+        m0, m1, m2, m3, m4, m5 = st.columns([0.5, 1.5, 1.5, 1.5, 2.5, 0.5])
+        with m0: 
+            with st.popover("🔔"): st.info("Sem avisos.")
+        with m1: st.markdown(f'<div class="metric-box"><div class="metric-label">SUA COLOCAÇÃO</div><div class="metric-value">🏆 {pos}</div></div>', unsafe_allow_html=True)
+        with m2: st.markdown(f'<div class="metric-box"><div class="metric-label">PERÍODO</div><div class="metric-value">JANEIRO / 2026</div></div>', unsafe_allow_html=True)
+        with m3: st.markdown(f'<div class="metric-box"><div class="metric-label">STATUS</div><div class="metric-value">🟢 ONLINE</div></div>', unsafe_allow_html=True)
+        with m4: st.markdown(f'<div class="metric-box"><div class="metric-label">UNIDADE</div><div class="metric-value">CALL CENTER PDF</div></div>', unsafe_allow_html=True)
+        with m5: st.toggle("🌙", value=st.session_state.dark_mode, on_change=toggle_theme, key="dark_tgl")
         st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown('<div class="main-content">', unsafe_allow_html=True)
-        col_rank, col_chart = st.columns(2)
+        
+        # 5. CONTEÚDO PRINCIPAL (Tabela do Relatório e Ranking)
+        col_rank, col_evol = st.columns(2)
         
         with col_rank:
-            st.markdown("### 🏆 Ranking da Equipe")
+            st.markdown("### 🏆 Ranking Geral")
             st.dataframe(rk[["Nome", "Meta_Str"]], use_container_width=True, hide_index=True, height=400)
         
-        with col_chart:
-            st.markdown(f"### 📈 Evolução Diária - {p_nome.title()}")
+        with col_evol:
+            st.markdown(f"### 📈 Histórico Diário - {p_nome.title()}")
             if not operator_row.empty:
-                y_values = [clean_numeric(v) for v in operator_row.iloc[0, 1:].values]
-                # GRÁFICO PLOTLY PREMIUM
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=dates_header, y=y_values, mode='lines+markers',
-                    line=dict(color=colors['chart_line'], width=3),
-                    marker=dict(size=8, color=colors['chart_line'], symbol='circle'),
-                    hovertemplate='Data: %{x}<br>Valor: %{y:.2f}%<extra></extra>'
-                ))
-                                fig.update_layout(
-                    margin=dict(l=0, r=0, t=20, b=0), height=400,
-                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                    xaxis=dict(showgrid=False, color=colors['text'], tickfont=dict(size=10)),
-                    yaxis=dict(range=[0, 110], ticksuffix='%', color=colors['text'], gridcolor="rgba(0,0,0,0.1)", zeroline=False),
-                    hovermode='x unified'
-                )
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                # Transforma dados para gráfico nativo (sem bibliotecas extras)
+                y_data = [clean_numeric(v) for v in operator_row.iloc[0, 1:].values]
+                chart_df = pd.DataFrame({"Data": dates_header, "Meta %": y_data})
+                
+                # Gráfico Nativo (Barra ou Linha do Streamlit)
+                st.bar_chart(chart_df, x="Data", y="Meta %", color=colors['accent'])
+                
+                # Tabela de dados exatos (estilo ranking)
+                st.dataframe(chart_df.transpose(), use_container_width=True)
             else:
-                st.warning("Aguardando dados de performance.")
+                st.warning("Aguardando carregamento de performance.")
 
-        # 6. CARDS INDIVIDUAIS COM COROA
+        # 6. PERFORMANCE INDIVIDUAL (CARDS COM COROA)
         st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
         cols = st.columns(8)
         for idx, row in rk.iterrows():
