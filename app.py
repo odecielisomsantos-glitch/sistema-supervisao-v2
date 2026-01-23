@@ -165,13 +165,52 @@ else:
         
         with col_chart:
             st.markdown(f"### 📈 Histórico de Performance - {p_nome.title()}")
+            
+            # --- NOVO BLOCO DE GRÁFICO (Estilo Imagem 1) ---
+            import plotly.graph_objects as go
+
+            # 1. Preparação dos dados: Pegamos o intervalo AJ1:BO24
+            # AJ é a coluna 35 (0-indexed). BO é a 66.
+            df_ev = df_rel.iloc[0:24, 35:67].copy() 
+            df_ev.columns = df_ev.iloc[0]  # Define a primeira linha (Datas) como cabeçalho
+            df_ev = df_ev[1:]              # Remove a linha do cabeçalho do corpo dos dados
+
+            # 2. Filtrar pelo nome do operador logado
+            u_ev_row = df_ev[df_ev.iloc[:, 0].astype(str).str.upper().str.contains(p_nome, na=False)]
+
             if not u_ev_row.empty:
-                # Transposição para o gráfico de linhas
-                plot_df = u_ev_row.iloc[0:1, 1:].transpose()
-                plot_df.columns = ["Meta"]
-                plot_df["Meta"] = plot_df["Meta"].apply(clean_v)
-                st.line_chart(plot_df, height=350, color=colors["chart"])
-            else: st.warning(f"Dados não localizados para {p_nome} no relatório AJ1:BO24.")
+                # Transpõe para ter Datas no Eixo X e Valores no Eixo Y
+                plot_df = u_ev_row.iloc[0, 1:].reset_index()
+                plot_df.columns = ["Data", "Valor"]
+                
+                # Limpeza de dados (converte "97,5%" para 97.5)
+                plot_df["Valor"] = plot_df["Valor"].apply(clean_v)
+
+                # Criando o gráfico estilo "Line Graph" da imagem
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=plot_df["Data"], 
+                    y=plot_df["Valor"],
+                    mode='lines+markers', # Linha com pontos igual à imagem
+                    line=dict(color='#F97316', width=3),
+                    marker=dict(size=8, color='#F97316', symbol='circle'),
+                    name='Performance'
+                ))
+
+                fig.update_layout(
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    height=350,
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    xaxis=dict(showgrid=True, gridcolor=colors["border"]),
+                    yaxis=dict(showgrid=True, gridcolor=colors["border"], range=[0, 110]),
+                    font=dict(color=colors["text"])
+                )
+
+                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            else:
+                st.warning(f"Dados não localizados para {p_nome} no relatório AJ1:BO24.")
+            # --- FIM DO BLOCO DO GRÁFICO ---
 
         # 7. PERFORMANCE INDIVIDUAL (Cards com Coroa Restaurada)
         st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
