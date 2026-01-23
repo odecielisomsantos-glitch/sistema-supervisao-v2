@@ -1,29 +1,32 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-import re
 
-# 1. Configuração de Layout e Sidebar (Estado inicial expandido) 
+# 1. Configuração de Página - ESSENCIAL para o alinhamento
 st.set_page_config(page_title="Equipe Atlas", page_icon="🌊", layout="wide", initial_sidebar_state="expanded")
 
-# 2. CSS: Navbars, Sidebar Colorida (Slate) e Layout Wide 
+# 2. CSS Inteligente: Navbars que respeitam a barra lateral e Cards com Coroa
 st.markdown("""
     <style>
     header, footer, #MainMenu {visibility: hidden;}
     .stApp { background: #FFF; font-family: 'Inter', sans-serif; }
     
-    /* Força a Sidebar a ser visível e colorida  */
-    [data-testid="stSidebar"] { background-color: #1e293b !important; min-width: 250px !important; display: block !important; }
+    /* Estilização da Sidebar (Área Vermelha) */
+    [data-testid="stSidebar"] { background-color: #1e293b !important; border-right: 1px solid #334155; }
     [data-testid="stSidebar"] * { color: #f8fafc !important; }
+    [data-testid="stSidebar"] .stButton > button { background: #ef4444; color: white !important; border: none; font-weight: bold; width: 100%; }
+
+    /* Navbars Fixas Ajustadas */
+    .nav-white { position: fixed; top: 0; left: 0; width: 100%; height: 55px; background: #FFF; display: flex; align-items: center; justify-content: space-between; padding: 0 40px 0 300px; z-index: 1001; border-bottom: 1px solid #EEE; }
+    .brand { font-size: 26px; font-weight: 900; color: #111827; letter-spacing: -1.2px; }
+    .nav-orange { position: fixed; top: 55px; left: 0; width: 100%; height: 85px; background: #A33B20; display: flex; align-items: center; justify-content: space-around; padding-left: 250px; z-index: 1000; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
     
-    /* Navbars Fixas  */
-    .nav-white { position: fixed; top: 0; left: 0; width: 100%; height: 55px; background: #FFF; display: flex; align-items: center; justify-content: space-between; padding: 0 50px; z-index: 1001; border-bottom: 1px solid #EEE; }
-    .nav-orange { position: fixed; top: 55px; left: 0; width: 100%; height: 90px; background: #A33B20; display: flex; align-items: center; justify-content: space-around; z-index: 1000; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-    
-    .main-content { margin-top: 170px; }
-    .logout-box { background: #EF4444; color: white !important; padding: 6px 15px; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 12px; }
-    
-    /* Cards de Performance  */
+    .nav-item { text-align: center; }
+    .nav-label { font-size: 10px; text-transform: uppercase; opacity: 0.9; font-weight: 800; }
+    .nav-value { font-size: 17px; font-weight: 700; }
+    .main-content { margin-top: 160px; }
+
+    /* Cards e Coroa Animada */
     .card { position: relative; background: #FFF; padding: 15px; border-radius: 15px; border: 1px solid #F3F4F6; text-align: center; margin-bottom: 25px; height: 180px; box-shadow: 0 4px 6px rgba(0,0,0,0.04); }
     .crown { position: absolute; top: -20px; left: 35%; font-size: 26px; animation: float 3s infinite ease-in-out; }
     @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px) rotate(3deg); } }
@@ -34,10 +37,6 @@ st.markdown("""
 def get_data(aba):
     conn = st.connection("gsheets", type=GSheetsConnection)
     return conn.read(worksheet=aba, ttl=0, header=None)
-
-# Função para limpar texto (remove pontos e deixa em maiúsculo) 
-def clean_text(t):
-    return re.sub(r'[^A-Z0-9 ]', ' ', str(t).upper())
 
 if 'auth' not in st.session_state: st.session_state.auth = False
 
@@ -51,51 +50,46 @@ if not st.session_state.auth:
             if not m.empty:
                 st.session_state.auth, st.session_state.user = True, m.iloc[0].to_dict()
                 st.rerun()
-            else: st.error("Dados incorretos")
+            else: st.error("Incorreto")
 else:
-    user = st.session_state.user
-    # Busca inteligente: pega os dois primeiros nomes limpos 
-    search_parts = clean_text(user['Nome']).split()[:2] 
+    u = st.session_state.user
+    # Busca robusta (ignora espaços e pontos)
+    target_name = str(u['Nome']).upper().strip()
 
-    # 3. BARRA LATERAL (Agora com cor Slate e Sair) 
+    # 3. BARRA LATERAL (Agora Visível e Alinhada)
     with st.sidebar:
         st.markdown("## 🌊 MENU ATLAS")
-        st.markdown(f"**{user['Nome']}**")
+        st.markdown(f"**{u['Nome']}**")
         st.write("---")
-        if st.button("🚪 SAIR DA CONTA", key="side_exit"):
+        if st.button("🚪 SAIR DA CONTA"):
             st.session_state.auth = False
             st.rerun()
 
-    # 4. PROCESSAMENTO DE DADOS 
+    # 4. PROCESSAMENTO DE DADOS (Ranking e Relatório AJ2:AT25)
     df_raw = get_data("DADOS-DIA")
     df_rel = get_data("RELATÓRIO")
 
-    # Ranking Geral
     rk = df_raw.iloc[1:24, [0, 1]].dropna()
     rk.columns = ["Nome", "Meta_Str"]
     rk['Meta_Num'] = rk['Meta_Str'].astype(str).str.replace('%','').str.replace(',','.').apply(pd.to_numeric, errors='coerce')
     rk = rk.sort_values(by='Meta_Num', ascending=False).reset_index(drop=True)
 
-    # Gráfico RELATÓRIO (AJ2:AT25) 
+    # Gráfico do Relatório
     df_evol = df_rel.iloc[1:25, 35:46].copy() 
-    df_evol.columns = df_evol.iloc[0].astype(str) # Datas da linha 2
+    df_evol.columns = df_evol.iloc[0].astype(str) # Datas (21/01, 22/01...)
     df_evol_data = df_evol.iloc[1:]
     
-    # Filtro Dinâmico: Verifica se as partes do nome existem na célula 
-    u_evol = df_evol_data[df_evol_data.iloc[:, 0].apply(lambda x: all(p in clean_text(x) for p in search_parts))]
+    # Busca Alexsandro na linha 18
+    u_evol = df_evol_data[df_evol_data.iloc[:, 0].astype(str).str.upper().str.contains(target_name.split()[0], na=False)]
 
-    # Sua Colocação
-    u_rk = rk[rk['Nome'].apply(lambda x: all(p in clean_text(x) for p in search_parts))]
+    u_rk = rk[rk['Nome'].astype(str).str.upper().str.contains(target_name.split()[0], na=False)]
     colocacao = f"{u_rk.index[0] + 1}º" if not u_rk.empty else "N/A"
 
-    # Navbar Superior com Backup do Sair 
+    # Navbar Dupla Alinhada
     st.markdown(f'''
         <div class="nav-white">
-            <div style="font-size:24px; font-weight:900;">🌊 EQUIPE ATLAS</div>
-            <div style="display:flex; align-items:center; gap:20px;">
-                <div style="font-size:12px;">{user["Nome"]} | 2026 <span style="color:#F97316">●</span></div>
-                <a href="/" target="_self" class="logout-box" onclick="window.location.reload()">SAIR</a>
-            </div>
+            <div class="brand">🌊 EQUIPE ATLAS</div>
+            <div style="font-size:12px;">{u["Nome"]} | 2026 <span style="color:#F97316">●</span></div>
         </div>
         <div class="nav-orange">
             <div class="nav-item"><div class="nav-label">SUA COLOCAÇÃO</div><div class="nav-value">🏆 {colocacao}</div></div>
@@ -107,28 +101,28 @@ else:
 
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
     
-    # 5. LAYOUT 50/50 (Ranking vs Evolução) 
+    # 5. LAYOUT DIVIDIDO 50/50
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("### 🏆 Ranking Geral")
-        st.dataframe(rk[["Nome", "Meta_Str"]], use_container_width=True, hide_index=True, height=330)
+        st.dataframe(rk[["Nome", "Meta_Str"]], use_container_width=True, hide_index=True, height=300)
     with c2:
-        st.markdown(f"### 📈 Histórico de Performance - {user['Nome']}")
+        st.markdown(f"### 📈 Histórico de Performance - {target_name}")
         if not u_evol.empty:
             plot_df = u_evol.iloc[0:1, 1:].transpose()
             plot_df.columns = ["Meta"]
             plot_df["Meta"] = plot_df["Meta"].astype(str).str.replace('%','').str.replace(',','.').apply(pd.to_numeric, errors='coerce')
-            st.line_chart(plot_df, height=330, color="#F97316")
-        else:
-            st.warning(f"Dados não localizados para {search_parts} no intervalo AJ2:AT25.")
+            st.line_chart(plot_df, height=300, color="#F97316")
+        else: st.warning(f"Dados não localizados para {target_name} em AJ2:AT25.")
 
-    # 6. CARDS DE PERFORMANCE 
+    # 6. CARDS INDIVIDUAIS
     st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
     cols = st.columns(8)
     for idx, row in rk.iterrows():
         color = "#10B981" if row['Meta_Num'] >= 80 else "#EF4444"
+        ini = "".join([n[0] for n in str(row['Nome']).split()[:2]]).upper()
         crown = f'<div class="crown">👑</div>' if row['Meta_Num'] >= 80 else ''
         with cols[idx % 8]:
-            st.markdown(f'''<div class="card">{crown}<div class="av">{"".join([n[0] for n in str(row['Nome']).split()[:2]]).upper()}</div><div style="font-size:9px;font-weight:800;height:30px;">{" ".join(str(row["Nome"]).split()[:2])}</div><div style="font-size:22px;font-weight:800;color:{color};">{row["Meta_Str"]}</div></div>''', unsafe_allow_html=True)
+            st.markdown(f'''<div class="card">{crown}<div class="av">{ini}</div><div style="font-size:9px;font-weight:800;height:30px;">{" ".join(str(row["Nome"]).split()[:2])}</div><div style="font-size:20px;font-weight:800;color:{color};">{row["Meta_Str"]}</div></div>''', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
