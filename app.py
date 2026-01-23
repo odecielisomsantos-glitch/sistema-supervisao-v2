@@ -1,46 +1,44 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 
-# Layout centralizado e remoção de elementos padrão
-st.set_page_config(page_title="Team Brisa | Portal", page_icon="🌊", layout="centered")
+# Configurações de Página e Estética Profissional
+st.set_page_config(page_title="Team Brisa | Acesso", page_icon="🌊", layout="centered")
 
-# CSS Avançado: Cores Profissionais, Fontes e Visibilidade
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+    /* Reset de UI para visual limpo e profissional */
+    header, footer, #MainMenu {visibility: hidden;}
+    .stApp { background: #0b101a; font-family: 'Inter', sans-serif; }
     
-    /* Remove a linha branca superior e o menu padrão */
-    header {visibility: hidden;}
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    
-    .stApp { background: #0b0f19; font-family: 'Inter', sans-serif; }
-    
-    /* Card de Login */
-    div[data-testid="stForm"] {
-        background: #161b22; padding: 50px; border-radius: 12px;
-        border: 1px solid #30363d; box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    /* Centralização e Estilo do Card */
+    div[data-testid="stForm"] { 
+        background: #161b22; padding: 40px; border-radius: 12px; 
+        border: 1px solid #30363d; box-shadow: 0 15px 35px rgba(0,0,0,0.5); 
     }
     
-    /* Inputs Estilizados */
-    input { background-color: #0d1117 !important; color: #e6edf3 !important; border: 1px solid #30363d !important; border-radius: 6px !important; height: 45px !important; }
-    label { color: #8b949e !important; font-weight: 600 !important; }
-    
-    /* BOTÃO DE ALTA VISIBILIDADE (VERDE ESMERALDA) */
-    div.stButton > button {
-        width: 100%; background: #238636 !important; color: white !important;
-        border: none !important; height: 50px !important; border-radius: 6px !important;
-        font-size: 16px !important; font-weight: 600 !important; margin-top: 20px !important;
+    /* Input com foco e contraste elevado */
+    input { background-color: #0d1117 !important; color: #fff !important; border: 1px solid #30363d !important; }
+    label { color: #8b949e !important; font-size: 14px !important; }
+
+    /* BOTÃO COM CONTROLE DE COR (VERDE DE ALTA VISIBILIDADE) */
+    div.stButton > button { 
+        width: 100%; background: #238636 !important; color: white !important; 
+        font-weight: 700; height: 48px; border: none; border-radius: 6px; 
+        margin-top: 15px; cursor: pointer;
     }
-    div.stButton > button:hover { background: #2ea043 !important; border: none !important; }
-    
-    /* Mensagens de Erro */
-    div[data-testid="stNotification"] { border-radius: 8px !important; background: #2a1215 !important; color: #ff7b72 !important; }
+    div.stButton > button:hover { background: #2ea043 !important; }
     </style>
 """, unsafe_allow_html=True)
 
-def get_db():
-    try: return st.connection("gsheets", type=GSheetsConnection).read(worksheet="Usuarios", ttl=0).astype(str)
+def carregar_usuarios():
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        # ttl=0 garante que ele leia a planilha AGORA, sem usar memória antiga
+        df = conn.read(worksheet="Usuarios", ttl=0).astype(str)
+        # Normalização total para evitar erro de "Incorreto"
+        df['Usuario'] = df['Usuario'].str.strip().str.lower()
+        df['Senha'] = df['Senha'].str.strip()
+        return df
     except: return None
 
 if 'auth' not in st.session_state: st.session_state.auth = False
@@ -48,32 +46,28 @@ if 'auth' not in st.session_state: st.session_state.auth = False
 if not st.session_state.auth:
     _, col, _ = st.columns([0.1, 1, 0.1])
     with col:
-        st.markdown("<h1 style='text-align:center; color:white; font-size:40px; margin-bottom:0;'>🌊</h1>", unsafe_allow_html=True)
-        st.markdown("<h2 style='text-align:center; color:white; margin-top:10px; font-weight:600;'>Portal do Usuário</h2>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align:center; color:#8b949e; margin-bottom:30px;'>Team Brisa - Gestão Inteligente</p>", unsafe_allow_html=True)
-        
+        st.markdown("<h2 style='text-align:center; color:white; margin-bottom:25px;'>Portal Team Brisa</h2>", unsafe_allow_html=True)
         with st.form("login"):
-            u = st.text_input("Usuário ou CPF").strip().lower()
-            p = st.text_input("Senha", type="password").strip()
-            st.markdown("<div style='text-align:right;'><a href='#' style='color:#2ea043; text-decoration:none; font-size:12px;'>Esqueceu sua senha?</a></div>", unsafe_allow_html=True)
+            u_in = st.text_input("Usuário").strip().lower()
+            p_in = st.text_input("Senha", type="password").strip()
             
-            if st.form_submit_button("ENTRAR NO PORTAL"):
-                df = get_db()
+            if st.form_submit_button("ENTRAR NO SISTEMA"):
+                df = carregar_usuarios()
                 if df is not None:
-                    df['Usuario'] = df['Usuario'].str.strip().str.lower()
-                    user = df[(df['Usuario'] == u) & (df['Senha'].str.strip() == p)]
+                    # Comparação blindada contra erros de digitação na planilha
+                    user = df[(df['Usuario'] == u_in) & (df['Senha'] == p_in)]
                     if not user.empty:
                         st.session_state.auth, st.session_state.user = True, user.iloc[0].to_dict()
                         st.rerun()
-                    else: st.error("Acesso Negado: Credenciais incorretas.")
-        
-        st.markdown("<p style='text-align:center; color:#8b949e; font-size:14px; margin-top:30px;'>Ainda não tem acesso? <span style='color:#2ea043;'>Contate o Admin</span></p>", unsafe_allow_html=True)
-
+                    else: st.error("Usuário ou senha não conferem.")
+                else: st.error("Erro ao ler banco de dados.")
 else:
+    # Área interna após login bem sucedido
     u = st.session_state.user
-    st.sidebar.markdown(f"### Olá, {u['Nome']}")
-    if st.sidebar.button("Sair do Sistema"): 
+    st.sidebar.title(f"Olá, {u['Nome']}")
+    if st.sidebar.button("Sair"): 
         st.session_state.auth = False
         st.rerun()
-    st.title(f"Dashboard {u['Funcao'].capitalize()}")
-    st.success(f"Logado como: {u['Nome']}")
+    
+    st.title(f"Painel de {u['Funcao'].title()}")
+    st.success(f"Acesso autorizado para: {u['Nome']}")
