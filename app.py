@@ -4,7 +4,7 @@ import pandas as pd
 
 st.set_page_config(page_title="Team Brisa | Operação", page_icon="🌊", layout="wide")
 
-# CSS: Design Premium dos Cards e Navbar
+# CSS: Animações, Cores Dinâmicas e Cards Compactos
 st.markdown("""
     <style>
     header, footer, #MainMenu {visibility: hidden;}
@@ -19,23 +19,36 @@ st.markdown("""
 
     .main-content { margin-top: 80px; }
 
-    /* Estilo do Card Circular */
-    .card-container {
-        background: #FFFFFF; padding: 25px 15px; border-radius: 20px;
-        border: 1px solid #F3F4F6; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
-        text-align: center; margin-bottom: 25px; transition: 0.3s;
+    /* Animação Suave da Coroa */
+    @keyframes floatCrown {
+        0% { transform: translateY(0px) rotate(0deg); }
+        50% { transform: translateY(-5px) rotate(3deg); }
+        100% { transform: translateY(0px) rotate(0deg); }
     }
-    .card-container:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+
+    .crown-icon {
+        position: absolute; top: -25px; left: 50%; transform: translateX(-50%);
+        font-size: 30px; animation: floatCrown 3s ease-in-out infinite;
+        z-index: 10;
+    }
+
+    /* Card Compacto */
+    .card-container {
+        position: relative; background: #FFFFFF; padding: 15px 10px; border-radius: 15px;
+        border: 1px solid #F3F4F6; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        text-align: center; margin-bottom: 30px; transition: 0.3s; height: 210px;
+    }
+    .card-container:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
 
     .avatar-circle {
-        width: 80px; height: 80px; background: #22D3EE; color: #083344;
+        width: 60px; height: 60px; background: #22D3EE; color: #083344;
         border-radius: 50%; display: flex; align-items: center; justify-content: center;
-        margin: 0 auto 15px; font-size: 28px; font-weight: bold;
+        margin: 5px auto 10px; font-size: 20px; font-weight: bold;
     }
 
-    .colab-name { font-size: 14px; font-weight: 800; color: #1F2937; margin-bottom: 10px; line-height: 1.2; text-transform: uppercase; }
-    .colab-score { font-size: 32px; font-weight: 800; color: #10B981; margin: 10px 0; }
-    .hover-hint { font-size: 11px; color: #9CA3AF; display: flex; align-items: center; justify-content: center; gap: 5px; }
+    .colab-name { font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 5px; text-transform: uppercase; height: 35px; overflow: hidden; }
+    .colab-score { font-size: 26px; font-weight: 800; margin: 5px 0; }
+    .hover-hint { font-size: 10px; color: #9CA3AF; margin-top: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -48,8 +61,13 @@ def get_data(aba):
 
 def get_initials(name):
     parts = name.split()
-    if len(parts) >= 2: return (parts[0][0] + parts[-1][0]).upper()
-    return name[:2].upper()
+    return (parts[0][0] + parts[-1][0]).upper() if len(parts) >= 2 else name[:2].upper()
+
+# Função para definir a cor baseada na meta
+def get_score_color(value):
+    if value >= 90: return "#10B981" # Verde
+    if value >= 70: return "#F59E0B" # Amarelo/Âmbar
+    return "#EF4444" # Vermelho
 
 if 'auth' not in st.session_state: st.session_state.auth = False
 
@@ -86,29 +104,34 @@ else:
     if u['Funcao'] == 'operador':
         df = get_data("DADOS-DIA")
         if df is not None:
-            # Captura e tratamento dos dados
+            # Captura dados da planilha
             rk = df.iloc[1:24, [0, 1]].dropna()
             rk.columns = ["Nome", "Meta_Str"]
-            
-            # Converte a meta para número para poder ordenar corretamente
             rk['Meta_Num'] = rk['Meta_Str'].str.replace('%', '').str.replace(',', '.').astype(float)
             rk = rk.sort_values(by='Meta_Num', ascending=False)
             
-            st.markdown("### 🏆 Ranking Geral da Equipe")
+            st.markdown("### 🏆 Ranking da Equipe")
             st.dataframe(rk[["Nome", "Meta_Str"]], use_container_width=True, hide_index=True)
             
             st.write("---")
             st.markdown("### 📊 Performance Individual")
             
-            cols = st.columns(6) # Mais colunas para um grid profissional
+            # Grid mais compacto com 7 colunas
+            cols = st.columns(7)
             for idx, row in rk.reset_index(drop=True).iterrows():
+                val = row['Meta_Num']
                 initials = get_initials(row['Nome'])
-                with cols[idx % 6]:
+                color = get_score_color(val)
+                # Lógica da Coroa (80% ou mais)
+                crown_html = '<div class="crown-icon">👑</div>' if val >= 80 else ''
+                
+                with cols[idx % 7]:
                     st.markdown(f"""
                         <div class="card-container">
+                            {crown_html}
                             <div class="avatar-circle">{initials}</div>
                             <div class="colab-name">{row['Nome']}</div>
-                            <div class="colab-score">{row['Meta_Str']}</div>
+                            <div class="colab-score" style="color: {color};">{row['Meta_Str']}</div>
                             <div class="hover-hint">👆 Passe o mouse</div>
                         </div>
                     """, unsafe_allow_html=True)
