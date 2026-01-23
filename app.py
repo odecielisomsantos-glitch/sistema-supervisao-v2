@@ -3,7 +3,7 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import base64
 
-# 1. Configuração de Layout e Tema
+# 1. Configuração de Layout e Tema (Sem Sidebar)
 st.set_page_config(page_title="Equipe Atlas", page_icon="🌊", layout="wide", initial_sidebar_state="collapsed")
 
 if 'dark_mode' not in st.session_state:
@@ -12,35 +12,48 @@ if 'dark_mode' not in st.session_state:
 def toggle_theme():
     st.session_state.dark_mode = not st.session_state.dark_mode
 
-# Variáveis de Cores Adaptativas
+# Variáveis de Cores para o Modo Noturno
 is_dark = st.session_state.dark_mode
 colors = {
     "bg": "#0E1117" if is_dark else "#FFFFFF",
     "text": "#F9FAFB" if is_dark else "#111827",
-    "card_bg": "#1A1C23" if is_dark else "#FFFFFF",
+    "card_bg": "#1F2937" if is_dark else "#FFFFFF",
     "border": "#30363D" if is_dark else "#E5E7EB",
-    "info_bar": "#1F2937" if is_dark else "#F9FAFB",
-    "accent": "#F97316"
+    "info_bar": "#1F2937" if is_dark else "#F9FAFB"
 }
 
-# 2. CSS Blindado (Headers, Métricas e Coroas)
+# 2. CSS: Cabeçalho, Faixa de Métricas e Coroas
 st.markdown(f"""
     <style>
     header, footer, #MainMenu {{visibility: hidden;}}
     .stApp {{ background: {colors['bg']}; font-family: 'Inter', sans-serif; transition: 0.1s; }}
     [data-testid="stSidebar"] {{ display: none; }}
     .main .block-container {{ padding: 0; max-width: 100%; }}
+
+    .nav-main {{ 
+        position: fixed; top: 0; left: 0; width: 100%; height: 55px; 
+        background: {colors['bg']}; display: flex; align-items: center; 
+        justify-content: space-between; padding: 0 40px; z-index: 1001; 
+        border-bottom: 1px solid {colors['border']}; 
+    }}
     
-    .nav-main {{ position: fixed; top: 0; left: 0; width: 100%; height: 55px; background: {colors['bg']}; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; z-index: 1001; border-bottom: 1px solid {colors['border']}; }}
-    
-    .metric-strip {{ margin-top: 55px; padding: 15px 40px; background: {colors['info_bar']}; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid {colors['border']}; }}
+    .metric-strip {{
+        margin-top: 55px; padding: 15px 40px; background: {colors['info_bar']};
+        display: flex; align-items: center; justify-content: space-between;
+        border-bottom: 1px solid {colors['border']};
+    }}
     .metric-box {{ text-align: center; }}
     .metric-label {{ font-size: 10px; color: {colors['text']}; opacity: 0.7; font-weight: 800; text-transform: uppercase; }}
     .metric-value {{ font-size: 16px; color: {colors['text']}; font-weight: 700; }}
-    
+
     .main-content {{ margin-top: 20px; padding: 0 40px; color: {colors['text']}; }}
-    
-    .card {{ position: relative; background: {colors['card_bg']}; padding: 18px; border-radius: 16px; border: 1px solid {colors['border']}; text-align: center; margin-bottom: 30px; height: 190px; }}
+
+    /* Cards e Coroa Restaurada */
+    .card {{ 
+        position: relative; background: {colors['card_bg']}; padding: 18px; 
+        border-radius: 16px; border: 1px solid {colors['border']}; 
+        text-align: center; margin-bottom: 30px; height: 190px;
+    }}
     .crown {{ position: absolute; top: -18px; left: 35%; font-size: 24px; animation: float 3s infinite ease-in-out; }}
     @keyframes float {{ 0%, 100% {{ transform: translateY(0); }} 50% {{ transform: translateY(-7px) rotate(3deg); }} }}
     
@@ -49,22 +62,24 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-def clean_numeric(val):
-    if pd.isna(val) or val == "" or str(val).strip() == "0%": return 0.0
-    try:
-        return float(str(val).replace('%', '').replace(',', '.').strip())
-    except: return 0.0
-
 def get_data(aba):
     conn = st.connection("gsheets", type=GSheetsConnection)
     return conn.read(worksheet=aba, ttl=0, header=None)
 
-# --- LOGIN ---
+def clean_val(v):
+    if pd.isna(v) or v == "": return 0.0
+    try:
+        return float(str(v).replace('%', '').replace(',', '.').strip())
+    except: return 0.0
+
 if 'auth' not in st.session_state: st.session_state.auth = False
+
+# --- LOGIN ---
 if not st.session_state.auth:
     col_l, _ = st.columns([1, 2])
     with col_l:
         with st.form("login"):
+            st.subheader("Acessar Portal")
             u_in, p_in = st.text_input("Usuário").lower().strip(), st.text_input("Senha", type="password").strip()
             if st.form_submit_button("ACESSAR PORTAL"):
                 df_u = get_data("Usuarios").iloc[1:]
@@ -75,7 +90,7 @@ if not st.session_state.auth:
                     st.rerun()
                 else: st.error("Dados incorretos.")
 
-# --- DASHBOARD PRINCIPAL ---
+# --- APP PRINCIPAL ---
 else:
     u = st.session_state.user
     p_nome = str(u['Nome']).upper().strip()
@@ -84,23 +99,26 @@ else:
     df_rel = get_data("RELATÓRIO")
     
     if df_raw is not None and df_rel is not None:
+        # Ranking Geral (DADOS-DIA)
         rk = df_raw.iloc[1:24, [0, 1]].dropna()
         rk.columns = ["Nome", "Meta_Str"]
-        rk['Meta_Num'] = rk['Meta_Str'].apply(clean_numeric)
+        rk['Meta_Num'] = rk['Meta_Str'].apply(clean_val)
         rk = rk.sort_values(by='Meta_Num', ascending=False).reset_index(drop=True)
 
-        # 3. Processamento RELATÓRIO AJ1:BO24 (Nativo)
+        # 3. ESPELHAMENTO RELATÓRIO AJ1:BO24
+        # AJ é a coluna index 35. BO é a 66.
         df_evol_slice = df_rel.iloc[0:24, 35:67].copy() 
-        dates_header = df_evol_slice.iloc[0, 1:].tolist() # Datas AK1:BO1
+        df_evol_slice.columns = df_evol_slice.iloc[0] # Define a linha 1 como cabeçalho (Datas)
+        df_evol_data = df_evol_slice.iloc[1:] # Dados a partir da linha 2
         
-        # Filtro do Operador logado
+        # Filtra os dados apenas do operador logado para espelhar ao lado
         p_match = p_nome.split()[0]
-        operator_row = df_evol_slice[df_evol_slice.iloc[:, 0].astype(str).str.upper().str.contains(p_match, na=False)]
+        u_rel_row = df_evol_data[df_evol_data.iloc[:, 0].astype(str).str.upper().str.contains(p_match, na=False)]
         
         u_rk_match = rk[rk['Nome'].astype(str).str.upper().str.contains(p_match, na=False)]
         pos = f"{u_rk_match.index[0] + 1}º" if not u_rk_match.empty else "N/A"
 
-        # 4. NAVBAR E MÉTRICAS
+        # 4. CABEÇALHO SUPERIOR
         st.markdown(f'''
             <div class="nav-main">
                 <div class="brand-logo"><span style="color:#F97316; font-weight:900; font-size:22px;">ATLAS</span></div>
@@ -109,56 +127,55 @@ else:
                     <a href="/" target="_self" class="logout-btn">SAIR</a>
                 </div>
             </div>
-            <div class="metric-strip">
         ''', unsafe_allow_html=True)
+
+        # 5. FAIXA DE MÉTRICAS (Sino, Colocação, Período, Status, Unidade, Tema)
+        st.markdown('<div class="metric-strip">', unsafe_allow_html=True)
+        mc0, mc1, mc2, mc3, mc4, mc5 = st.columns([0.5, 1.5, 1.5, 1.5, 2.5, 0.5])
         
-        m0, m1, m2, m3, m4, m5 = st.columns([0.5, 1.5, 1.5, 1.5, 2.5, 0.5])
-        with m0: 
-            with st.popover("🔔"): st.info("Sem avisos.")
-        with m1: st.markdown(f'<div class="metric-box"><div class="metric-label">SUA COLOCAÇÃO</div><div class="metric-value">🏆 {pos}</div></div>', unsafe_allow_html=True)
-        with m2: st.markdown(f'<div class="metric-box"><div class="metric-label">PERÍODO</div><div class="metric-value">JANEIRO / 2026</div></div>', unsafe_allow_html=True)
-        with m3: st.markdown(f'<div class="metric-box"><div class="metric-label">STATUS</div><div class="metric-value">🟢 ONLINE</div></div>', unsafe_allow_html=True)
-        with m4: st.markdown(f'<div class="metric-box"><div class="metric-label">UNIDADE</div><div class="metric-value">CALL CENTER PDF</div></div>', unsafe_allow_html=True)
-        with m5: st.toggle("🌙", value=st.session_state.dark_mode, on_change=toggle_theme, key="dark_tgl")
+        with mc0: 
+            with st.popover("🔔"):
+                st.info("Nenhuma nova notificação.")
+        
+        with mc1: st.markdown(f'<div class="metric-box"><div class="metric-label">SUA COLOCAÇÃO</div><div class="metric-value">🏆 {pos}</div></div>', unsafe_allow_html=True)
+        with mc2: st.markdown(f'<div class="metric-box"><div class="metric-label">PERÍODO</div><div class="metric-value">JANEIRO / 2026</div></div>', unsafe_allow_html=True)
+        with mc3: st.markdown(f'<div class="metric-box"><div class="metric-label">STATUS</div><div class="metric-value">🟢 ONLINE</div></div>', unsafe_allow_html=True)
+        with mc4: st.markdown(f'<div class="metric-box"><div class="metric-label">UNIDADE</div><div class="metric-value">CALL CENTER PDF</div></div>', unsafe_allow_html=True)
+        with mc5: st.toggle("🌙", value=st.session_state.dark_mode, on_change=toggle_theme, key="dark_tgl")
         st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown('<div class="main-content">', unsafe_allow_html=True)
         
-        # 5. CONTEÚDO PRINCIPAL (Tabela do Relatório e Ranking)
-        col_rank, col_evol = st.columns(2)
+        # 6. CONTEÚDO PRINCIPAL (Ranking Geral vs Espelhamento do Relatório)
+        col_rank, col_mirror = st.columns(2)
         
         with col_rank:
-            st.markdown("### 🏆 Ranking Geral")
+            st.markdown("### 🏆 Ranking da Equipe")
             st.dataframe(rk[["Nome", "Meta_Str"]], use_container_width=True, hide_index=True, height=400)
         
-        with col_evol:
-            st.markdown(f"### 📈 Histórico Diário - {p_nome.title()}")
-            if not operator_row.empty:
-                # Transforma dados para gráfico nativo (sem bibliotecas extras)
-                y_data = [clean_numeric(v) for v in operator_row.iloc[0, 1:].values]
-                chart_df = pd.DataFrame({"Data": dates_header, "Meta %": y_data})
-                
-                # Gráfico Nativo (Barra ou Linha do Streamlit)
-                st.bar_chart(chart_df, x="Data", y="Meta %", color=colors['accent'])
-                
-                # Tabela de dados exatos (estilo ranking)
-                st.dataframe(chart_df.transpose(), use_container_width=True)
+        with col_mirror:
+            st.markdown(f"### 📋 Seu Histórico Diário (Espelho AJ1:BO24)")
+            if not u_rel_row.empty:
+                # Exibe a linha exata da planilha RELATÓRIO para o operador
+                st.dataframe(u_rel_row, use_container_width=True, hide_index=True)
             else:
-                st.warning("Aguardando carregamento de performance.")
+                st.warning(f"Dados de '{p_match}' não localizados na aba RELATÓRIO.")
 
-        # 6. PERFORMANCE INDIVIDUAL (CARDS COM COROA)
+        # 7. PERFORMANCE INDIVIDUAL (Cards com Coroa Restaurada)
         st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
         cols = st.columns(8)
         for idx, row in rk.iterrows():
             val, color_c = row['Meta_Num'], ("#10B981" if row['Meta_Num'] >= 80 else "#EF4444")
-            crown = '<div class="crown">👑</div>' if val >= 80 else ''
+            # Coroa para meta igual ou superior a 80%
+            crown_html = '<div class="crown">👑</div>' if val >= 80 else ''
             ini = "".join([n[0] for n in str(row['Nome']).split()[:2]]).upper()
+            
             with cols[idx % 8]:
                 st.markdown(f'''
                     <div class="card">
-                        {crown}<div class="av">{ini}</div>
+                        {crown_html}<div class="av">{ini}</div>
                         <div style="font-size:10px;font-weight:700;height:35px;line-height:1.2;">{" ".join(str(row["Nome"]).split()[:2])}</div>
                         <div style="font-size:22px;font-weight:800;color:{color_c};">{row["Meta_Str"]}</div>
                     </div>
                 ''', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
