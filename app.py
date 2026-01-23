@@ -2,30 +2,26 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
-# 1. CONFIGURAÇÃO DE PÁGINA (Barra lateral inicia aberta)
+# 1. Configuração de Página e Sidebar
 st.set_page_config(page_title="Equipe Atlas", page_icon="🌊", layout="wide", initial_sidebar_state="expanded")
 
-# 2. CSS: Navbar Superior, Barra Laranja e Sidebar Estilizada
+# 2. CSS: Navbars, Sidebar e Cards
 st.markdown("""
     <style>
     header, footer, #MainMenu {visibility: hidden;}
     .stApp { background: #FFF; font-family: 'Inter', sans-serif; }
-    
-    /* Barra Lateral Esquerda (Área Vermelha) */
     [data-testid="stSidebar"] { background-color: #F8F9FA !important; border-right: 1px solid #E5E7EB; }
     
     .nav-white { position: fixed; top: 0; left: 0; width: 100%; height: 50px; background: #FFF; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; z-index: 1001; border-bottom: 1px solid #EEE; }
     .brand { font-size: 24px; font-weight: 900; color: #111827; letter-spacing: -1.2px; }
     
-    /* Barra Laranja Larga */
     .nav-orange { position: fixed; top: 50px; left: 0; width: 100%; height: 85px; background: #A33B20; display: flex; align-items: center; justify-content: space-around; z-index: 1000; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
     .nav-item { text-align: center; }
-    .nav-label { font-size: 10px; text-transform: uppercase; opacity: 0.8; font-weight: 800; }
-    .nav-value { font-size: 16px; font-weight: 700; }
+    .nav-label { font-size: 10px; text-transform: uppercase; opacity: 0.9; font-weight: 800; }
+    .nav-value { font-size: 17px; font-weight: 700; margin-top: 3px; }
 
     .main-content { margin-top: 155px; }
     
-    /* Cards com Coroa e Cores Dinâmicas */
     .card { position: relative; background: #FFF; padding: 15px; border-radius: 15px; border: 1px solid #F3F4F6; text-align: center; margin-bottom: 25px; height: 165px; box-shadow: 0 4px 6px rgba(0,0,0,0.04); }
     .crown { position: absolute; top: -18px; left: 35%; font-size: 24px; animation: float 3s infinite ease-in-out; }
     @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px) rotate(3deg); } }
@@ -37,7 +33,8 @@ def get_data(aba):
     conn = st.connection("gsheets", type=GSheetsConnection)
     return conn.read(worksheet=aba, ttl=0, header=None)
 
-def short_name(name): return " ".join(name.split()[:2])
+def short_name(name):
+    return " ".join(name.split()[:2]) if len(name.split()) >= 2 else name
 
 if 'auth' not in st.session_state: st.session_state.auth = False
 
@@ -64,21 +61,20 @@ else:
             st.session_state.auth = False
             st.rerun()
 
-    # Processamento de Dados (Ranking e Gráfico)
+    # Processamento de Dados
     df_raw = get_data("DADOS-DIA")
     
-    # Ranking Geral (A1:B24)
+    # Ranking Geral
     rk = df_raw.iloc[1:24, [0, 1]].dropna()
     rk.columns = ["Nome", "Meta_Str"]
     rk['Meta_Num'] = rk['Meta_Str'].str.replace('%','').str.replace(',','.').astype(float)
     rk = rk.sort_values(by='Meta_Num', ascending=False).reset_index(drop=True)
     
-    # Histórico de Evolução (A27:AG209)
+    # Correção do ValueError: Processamento do Gráfico
     df_hist = df_raw.iloc[26:209].copy()
     df_hist.columns = df_raw.iloc[26]
     u_hist = df_hist[df_hist.iloc[:, 0].str.contains(u['Nome'].split()[0], case=False, na=False)]
     
-    # Sua Colocação no Ranking
     u_match = rk[rk['Nome'].str.contains(u['Nome'].split()[0], case=False, na=False)]
     colocacao = f"{u_match.index[0] + 1}º" if not u_match.empty else "N/A"
 
@@ -104,13 +100,17 @@ else:
         with col_rank:
             st.markdown("### 🏆 Ranking Geral")
             st.dataframe(rk[["Nome", "Meta_Str"]], use_container_width=True, hide_index=True, height=300)
+        
         with col_chart:
             st.markdown("### 📈 Sua Evolução Diária")
             if not u_hist.empty:
-                plot = u_hist.iloc[:, 1:].transpose()
-                plot.columns = ["Meta"]
-                plot["Meta"] = plot["Meta"].str.replace('%','').str.replace(',','.').astype(float)
-                st.line_chart(plot, height=300, color="#F97316")
+                try:
+                    # Pega apenas a primeira ocorrência do colaborador para evitar o ValueError
+                    plot = u_hist.iloc[[0], 1:].transpose()
+                    plot.columns = ["Meta"]
+                    plot["Meta"] = plot["Meta"].str.replace('%','').str.replace(',','.').astype(float)
+                    st.line_chart(plot, height=300, color="#F97316")
+                except: st.error("Erro ao formatar datas no gráfico.")
             else: st.info("Dados de evolução não encontrados.")
 
         # 6. CARDS DE PERFORMANCE
@@ -120,7 +120,6 @@ else:
             val, color = row['Meta_Num'], ("#10B981" if row['Meta_Num'] >= 80 else "#EF4444")
             ini = "".join([n[0] for n in row['Nome'].split()[:2]]).upper()
             crown = '<div class="crown">👑</div>' if val >= 80 else ''
-            
             with cols[idx % 8]:
                 st.markdown(f'''
                 <div class="card">
