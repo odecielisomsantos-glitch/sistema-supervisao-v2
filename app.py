@@ -1,36 +1,34 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 
-# 1. Configuração de Página: Força a barra lateral a aparecer aberta
+# 1. Configuração: Força a barra lateral expandida
 st.set_page_config(page_title="Equipe Atlas", page_icon="🌊", layout="wide", initial_sidebar_state="expanded")
 
-# 2. CSS Profissional: Navbar Superior, Barra Laranja Larga e Sidebar
+# 2. CSS: Navbar, Barra Laranja Larga e Cards
 st.markdown("""
     <style>
     header, footer, #MainMenu {visibility: hidden;}
     .stApp { background: #FFF; font-family: 'Inter', sans-serif; }
     
-    /* Barra Lateral Esquerda Diferenciada */
-    [data-testid="stSidebar"] { background-color: #F8F9FA !important; border-right: 1px solid #E5E7EB; }
+    /* Barra Lateral Esquerda */
+    [data-testid="stSidebar"] { background-color: #F8F9FA !important; border-right: 1px solid #E5E7EB; padding-top: 20px; }
     
-    /* Topo: Equipe Atlas e Identificação (Canto Direito) */
-    .nav-white { position: fixed; top: 0; left: 0; width: 100%; height: 55px; background: #FFF; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; z-index: 1001; border-bottom: 1px solid #EEE; }
-    .brand { font-size: 28px; font-weight: 900; color: #111827; letter-spacing: -1.5px; }
-    .user-info { font-size: 13px; color: #374151; font-weight: 500; }
-
-    /* Barra Laranja Larga e Informativa */
-    .nav-orange { position: fixed; top: 55px; left: 0; width: 100%; height: 90px; background: #A33B20; display: flex; align-items: center; justify-content: space-around; z-index: 1000; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    /* Topo Branco e Barra Laranja Larga */
+    .nav-white { position: fixed; top: 0; left: 0; width: 100%; height: 50px; background: #FFF; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; z-index: 1001; border-bottom: 1px solid #EEE; }
+    .brand { font-size: 24px; font-weight: 900; color: #111827; letter-spacing: -1.2px; }
+    .nav-orange { position: fixed; top: 50px; left: 0; width: 100%; height: 85px; background: #A33B20; display: flex; align-items: center; justify-content: space-around; z-index: 1000; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    
     .nav-item { text-align: center; }
-    .nav-label { font-size: 11px; text-transform: uppercase; opacity: 0.9; font-weight: 800; letter-spacing: 0.5px; }
-    .nav-value { font-size: 18px; font-weight: 700; margin-top: 4px; }
+    .nav-label { font-size: 10px; text-transform: uppercase; opacity: 0.9; font-weight: 800; }
+    .nav-value { font-size: 17px; font-weight: 700; margin-top: 3px; }
 
-    .main-content { margin-top: 170px; }
+    .main-content { margin-top: 155px; }
     
-    /* Cards Compactos e Animados */
-    .card { position: relative; background: #FFF; padding: 15px; border-radius: 15px; border: 1px solid #F3F4F6; text-align: center; margin-bottom: 25px; height: 165px; box-shadow: 0 4px 6px rgba(0,0,0,0.04); transition: 0.3s; }
-    .crown { position: absolute; top: -20px; left: 35%; font-size: 26px; animation: float 3s infinite ease-in-out; }
-    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px) rotate(5deg); } }
-    .av { width: 45px; height: 45px; background: #22D3EE; color: #083344; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-weight: 800; }
+    /* Cards de Performance */
+    .card { position: relative; background: #FFF; padding: 15px; border-radius: 15px; border: 1px solid #F3F4F6; text-align: center; margin-bottom: 25px; height: 165px; box-shadow: 0 4px 6px rgba(0,0,0,0.04); }
+    .crown { position: absolute; top: -18px; left: 35%; font-size: 24px; animation: float 3s infinite ease-in-out; }
+    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px) rotate(3deg); } }
+    .av { width: 45px; height: 45px; background: #22D3EE; color: #083344; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: 800; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -39,7 +37,7 @@ def get_data(aba):
     df = conn.read(worksheet=aba, ttl=0, header=None)
     return df if aba != "Usuarios" else df.iloc[1:].copy()
 
-def short_name(name):
+def short_name(name): # Requisito: Apenas primeiro e segundo nome
     parts = name.split()
     return " ".join(parts[:2]) if len(parts) >= 2 else name
 
@@ -59,31 +57,31 @@ if not st.session_state.auth:
 else:
     u = st.session_state.user
     
-    # 3. BARRA LATERAL (SIDEBAR) COM OPÇÃO SAIR
+    # 3. MENU LATERAL ESQUERDO
     with st.sidebar:
-        st.markdown(f"### 🌊 Menu Atlas")
-        st.info(f"Conectado: **{short_name(u['Nome'])}**")
+        st.markdown("### 🌊 EQUIPE ATLAS")
+        st.write(f"Olá, **{short_name(u['Nome'])}**")
         st.write("---")
         if st.button("🚪 Sair da Conta", use_container_width=True):
-            st.session_state.auth = False
+            st.session_state.auth, st.session_state.user = False, None
             st.rerun()
 
-    # Processamento do Ranking
+    # Processamento de Dados
     df = get_data("DADOS-DIA")
     rk = df.iloc[1:24, [0, 1]].dropna()
     rk.columns = ["Nome", "Meta_Str"]
     rk['Meta_Num'] = rk['Meta_Str'].str.replace('%','').str.replace(',','.').astype(float)
     rk = rk.sort_values(by='Meta_Num', ascending=False).reset_index(drop=True)
     
-    # Lógica de Colocação Automática
-    user_match = rk[rk['Nome'].str.contains(u['Nome'].split()[0], case=False, na=False)]
-    colocacao = f"{user_match.index[0] + 1}º" if not user_match.empty else "N/A"
+    # Colocação Baseada no Login (Arthur Lola -> ARTHUR LOLA OLIVEIRA)
+    u_match = rk[rk['Nome'].str.contains(u['Nome'].split()[0], case=False, na=False)]
+    colocacao = f"{u_match.index[0] + 1}º" if not u_match.empty else "N/A"
 
-    # 4. NAVBAR DUPLA (BRANCA + LARANJA)
+    # 4. NAVBARS FIXAS
     st.markdown(f'''
         <div class="nav-white">
             <div class="brand">🌊 EQUIPE ATLAS</div>
-            <div class="user-info"><span style="color:#F97316">●</span> {u["Nome"]} | 2026</div>
+            <div style="font-size:12px; font-weight:500;">{u["Nome"]} | 2026 <span style="color:#F97316">●</span></div>
         </div>
         <div class="nav-orange">
             <div class="nav-item"><div class="nav-label">SUA COLOCAÇÃO</div><div class="nav-value">🏆 {colocacao}</div></div>
@@ -96,14 +94,16 @@ else:
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
     
     if u['Func'].lower() == 'operador':
-        st.markdown("### 🏆 Ranking Geral da Equipe")
-        st.dataframe(rk[["Nome", "Meta_Str"]], use_container_width=True, hide_index=True)
-
+        # 5. LAYOUT DIVIDIDO (Ranking na esquerda, vago na direita)
+        col_rank, col_vazio = st.columns([1, 1])
+        with col_rank:
+            st.markdown("### 🏆 Ranking Geral")
+            st.dataframe(rk[["Nome", "Meta_Str"]], use_container_width=True, hide_index=True)
+        
         st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
         cols = st.columns(8)
         for idx, row in rk.iterrows():
-            val = row['Meta_Num']
-            color = "#10B981" if val >= 80 else "#EF4444" # Verde >= 80%, Vermelho abaixo
+            val, color = row['Meta_Num'], ("#10B981" if row['Meta_Num'] >= 80 else "#EF4444")
             ini = "".join([n[0] for n in row['Nome'].split()[:2]]).upper()
             crown = '<div class="crown">👑</div>' if val >= 80 else ''
             
@@ -115,6 +115,4 @@ else:
                     <div style="font-size:20px; font-weight:800; color:{color}; margin-top:5px;">{row["Meta_Str"]}</div>
                 </div>
                 ''', unsafe_allow_html=True)
-    else:
-        st.warning("Área do Gestor em desenvolvimento.")
     st.markdown('</div>', unsafe_allow_html=True)
