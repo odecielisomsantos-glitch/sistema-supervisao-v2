@@ -13,7 +13,7 @@ if 'auth' not in st.session_state: st.session_state.auth = False
 if not st.session_state.auth:
     st.title("🌊 Login Team Brisa")
     with st.form("l"):
-        u = st.text_input("Usuário").strip().lower()
+        u = st.text_input("Usuario").strip().lower()
         p = st.text_input("Senha", type="password")
         if st.form_submit_button("ENTRAR"):
             df = get_data()
