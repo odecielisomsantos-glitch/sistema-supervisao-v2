@@ -1,84 +1,96 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
-import pandas as pd
 
-# 1. CONFIGURAÇÃO DE TEMA E INTERFACE
-st.set_page_config(page_title="Team Brisa | Gestão", page_icon="🌊", layout="centered")
+# 1. TEMA DARK UNIFICADO
+st.set_page_config(page_title="Team Brisa | Gestão", page_icon="🌊", layout="wide")
 
 st.markdown("""
     <style>
+    /* Remove elementos padrão e linha branca */
     header, footer, #MainMenu {visibility: hidden;}
-    .stApp { background: #0b0f19; font-family: 'Inter', sans-serif; }
+    
+    /* Fundo Total Escuro (App e Sidebar) */
+    .stApp, [data-testid="stSidebar"] { 
+        background-color: #0b0f19 !important; 
+        color: #e6edf3 !important;
+    }
+    
+    /* Estilo dos Inputs e Forms */
     div[data-testid="stForm"] { background: #161b22; padding: 40px; border-radius: 12px; border: 1px solid #30363d; }
     input { background-color: #0d1117 !important; color: white !important; border: 1px solid #30363d !important; }
+    
+    /* Botão Verde Profissional */
     div.stButton > button { 
         width: 100%; background: #238636 !important; color: white !important; 
-        font-weight: bold; height: 45px; border-radius: 6px; border: none;
+        font-weight: bold; border-radius: 6px; border: none; height: 45px;
     }
-    .ranking-card { background: #161b22; padding: 20px; border-radius: 10px; border: 1px solid #30363d; margin-bottom: 10px; }
+    
+    /* Ajuste de Texto e Sidebar */
+    [data-testid="stSidebar"] .stMarkdown p { color: #8b949e; font-size: 14px; }
+    h1, h2, h3 { color: #ffffff !important; font-weight: 600 !important; }
+    
+    /* Estilo para o Card de Destaque */
+    .destaque-box {
+        background: rgba(35, 134, 54, 0.1);
+        padding: 15px; border-radius: 8px;
+        border: 1px solid #238636; margin-top: 20px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# 2. FUNÇÃO DE CONEXÃO MULTI-ABA
-def get_sheet_data(aba, range_alvo=None):
+def get_sheet_data(aba):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
-        # Se range_alvo for definido, ele pega apenas aquele pedaço (ex: A2:B24)
         df = conn.read(worksheet=aba, ttl=0, header=None)
-        if aba == "Usuarios":
-            df = df.iloc[1:].copy() # Remove cabeçalho apenas para login
+        if aba == "Usuarios": df = df.iloc[1:].copy()
         return df
-    except Exception as e:
-        st.error(f"Erro na aba {aba}: {e}")
-        return None
+    except: return None
 
-# 3. SISTEMA DE AUTENTICAÇÃO
 if 'auth' not in st.session_state: st.session_state.auth = False
 
 if not st.session_state.auth:
-    _, col, _ = st.columns([0.1, 1, 0.1])
+    _, col, _ = st.columns([1, 2, 1])
     with col:
-        st.markdown("<h2 style='text-align:center; color:white;'>Portal Team Brisa</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align:center;'>Portal Team Brisa</h2>", unsafe_allow_html=True)
         with st.form("login"):
             u_in = st.text_input("Usuário").strip().lower()
             p_in = st.text_input("Senha", type="password").strip()
-            if st.form_submit_button("ENTRAR"):
-                df_user = get_sheet_data("Usuarios")
-                if df_user is not None:
-                    # 0=Usuario, 1=Senha, 2=Nome, 3=Funcao 
-                    user_match = df_user[(df_user[0].astype(str).str.lower() == u_in) & (df_user[1].astype(str) == p_in)]
-                    if not user_match.empty:
-                        st.session_state.auth = True
-                        st.session_state.user = {"Nome": user_match.iloc[0][2], "Funcao": user_match.iloc[0][3].lower()}
+            if st.form_submit_button("ENTRAR NO SISTEMA"):
+                df_u = get_sheet_data("Usuarios")
+                if df_u is not None:
+                    match = df_u[(df_u[0].astype(str).str.lower() == u_in) & (df_u[1].astype(str) == p_in)]
+                    if not match.empty:
+                        st.session_state.auth, st.session_state.user = True, {"Nome": match.iloc[0][2], "Funcao": match.iloc[0][3].lower()}
                         st.rerun()
-                    else: st.error("Dados incorretos.")
+                    else: st.error("Acesso negado.")
 else:
-    # 4. DASHBOARD DO GESTOR - RANKING TAM
     u = st.session_state.user
-    st.sidebar.title(f"🌊 {u['Nome']}")
-    if st.sidebar.button("Sair"):
+    st.sidebar.markdown(f"### 🌊 Team Brisa")
+    st.sidebar.write(f"Usuário: **{u['Nome']}**")
+    if st.sidebar.button("Encerrar Sessão"):
         st.session_state.auth = False
         st.rerun()
 
     if u['Funcao'] == 'gestor':
         st.title("🏆 Painel do Gestor")
-        st.subheader("Ranking TAM")
+        st.markdown("### Ranking TAM")
         
-        # Busca os dados da equipe na página DADOS-DIA 
         df_equipe = get_sheet_data("DADOS-DIA")
-        
         if df_equipe is not None:
-            # Filtra o intervalo A2:B24 (considerando que header=None, A2 é índice 1)
-            # Coluna 0 (A) = Nome do Agente, Coluna 1 (B) = Valor TAM 
-            ranking = df_equipe.iloc[1:24, [0, 1]] 
-            ranking.columns = ["Colaborador", "TAM"]
+            # Seleciona A2:B24 (índices 1 a 24)
+            ranking = df_equipe.iloc[1:24, [0, 1]]
+            ranking.columns = ["Colaborador", "TAM %"]
             
-            # Exibição Profissional em Tabela Minimalista
+            # Exibe a tabela de forma integrada ao tema dark
             st.dataframe(ranking, use_container_width=True, hide_index=True)
             
-            # Destaque para o Top 1
+            # Box de Destaque Personalizado
             top_1 = ranking.iloc[0]
-            st.info(f"🥇 Destaque do Dia: **{top_1['Colaborador']}** com TAM de **{top_1['TAM']}**")
+            st.markdown(f"""
+                <div class='destaque-box'>
+                    🥇 <b>Destaque do Dia:</b> {top_1['Colaborador']} com performance de <b>{top_1['TAM %']}</b>
+                </div>
+            """, unsafe_allow_html=True)
     else:
-        st.title("🚀 Área do Operador")
-        st.write("Bem-vindo ao sistema de registros.")
+        st.title("📝 Operação")
+        st.info("Área em desenvolvimento para registros operacionais.")
