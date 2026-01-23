@@ -3,7 +3,7 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import base64
 
-# 1. Configuração de Layout
+# 1. Configuração de Layout e Tema Adaptativo
 st.set_page_config(page_title="Equipe Atlas", page_icon="🌊", layout="wide", initial_sidebar_state="collapsed")
 
 if 'dark_mode' not in st.session_state:
@@ -12,73 +12,66 @@ if 'dark_mode' not in st.session_state:
 def toggle_theme():
     st.session_state.dark_mode = not st.session_state.dark_mode
 
-# Função para converter a Logo em Base64
-def get_image_base64(file_path):
+# Função para carregar a Logo via Base64 (Certifique-se de ter o arquivo 'logo_atlas.png')
+def get_logo_64(path):
     try:
-        with open(file_path, "rb") as f:
+        with open(path, "rb") as f:
             return base64.b64encode(f.read()).decode()
     except: return None
 
-# Tente carregar o arquivo 'logo_atlas.png' (sua logo laranja)
-logo_64 = get_image_base64("logo_atlas.png")
+logo_code = get_logo_64("logo_atlas.png")
 
-# Variáveis de Cores Adaptativas
+# Variáveis de Cores para Modo Escuro e Fontes
 is_dark = st.session_state.dark_mode
 colors = {
     "bg": "#0E1117" if is_dark else "#FFFFFF",
     "text": "#F9FAFB" if is_dark else "#111827",
-    "card_bg": "#1F2937" if is_dark else "#FFFFFF",
-    "border": "#374151" if is_dark else "#E5E7EB",
+    "card_bg": "#1A1C23" if is_dark else "#FFFFFF",
+    "border": "#30363D" if is_dark else "#E5E7EB",
+    "info_bar": "#1F2937" if is_dark else "#F9FAFB",
     "chart": "#F97316"
 }
 
-# 2. CSS: Navbars Fixas, Cards e Coroa Animada
+# 2. CSS Profissional: Cabeçalho, Faixa de Métricas e Coroas
 st.markdown(f"""
     <style>
     header, footer, #MainMenu {{visibility: hidden;}}
-    .stApp {{ background: {colors['bg']}; font-family: 'Inter', sans-serif; transition: 0.2s; }}
+    .stApp {{ background: {colors['bg']}; font-family: 'Inter', sans-serif; transition: 0.1s; }}
     [data-testid="stSidebar"] {{ display: none; }}
-    
-    /* Remove margens do Streamlit para as barras fixas */
     .main .block-container {{ padding: 0; max-width: 100%; }}
 
-    /* Navbar Superior Branca */
-    .header-white {{ 
+    /* Cabeçalho Superior Branco */
+    .nav-main {{ 
         position: fixed; top: 0; left: 0; width: 100%; height: 55px; 
         background: {colors['bg']}; display: flex; align-items: center; 
-        justify-content: space-between; padding: 0 50px; z-index: 1001; 
+        justify-content: space-between; padding: 0 40px; z-index: 1001; 
         border-bottom: 1px solid {colors['border']}; 
     }}
-    .logo-container img {{ height: 45px; width: auto; }}
+    .brand-logo img {{ height: 42px; width: auto; }}
 
-    /* Barra Laranja Fixa */
-    .header-orange {{ 
-        position: fixed; top: 55px; left: 0; width: 100%; height: 90px; 
-        background: #A33B20; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        display: flex; align-items: center; justify-content: center;
+    /* Faixa de Métricas (Substituta da Barra Laranja) */
+    .metric-strip {{
+        margin-top: 55px; padding: 15px 40px; background: {colors['info_bar']};
+        display: flex; align-items: center; justify-content: space-between;
+        border-bottom: 1px solid {colors['border']};
     }}
-    
-    /* Estilo dos itens dentro da barra laranja */
-    .orange-item {{ text-align: center; color: white !important; }}
-    .orange-label {{ font-size: 10px; text-transform: uppercase; font-weight: 800; opacity: 0.9; }}
-    .orange-value {{ font-size: 16px; font-weight: 700; }}
+    .metric-box {{ text-align: center; }}
+    .metric-label {{ font-size: 10px; color: {colors['text']}; opacity: 0.7; font-weight: 800; text-transform: uppercase; }}
+    .metric-value {{ font-size: 16px; color: {colors['text']}; font-weight: 700; margin-top: 2px; }}
 
-    .main-content {{ margin-top: 175px; padding: 20px 50px; color: {colors['text']}; }}
+    .main-content {{ margin-top: 20px; padding: 0 40px; color: {colors['text']}; }}
 
     /* Cards e Coroa Restaurada */
     .card {{ 
-        position: relative; background: {colors['card_bg']}; padding: 15px; 
-        border-radius: 15px; border: 1px solid {colors['border']}; 
-        text-align: center; margin-bottom: 30px; height: 185px; color: {colors['text']};
+        position: relative; background: {colors['card_bg']}; padding: 18px; 
+        border-radius: 16px; border: 1px solid {colors['border']}; 
+        text-align: center; margin-bottom: 30px; height: 190px;
     }}
     .crown {{ position: absolute; top: -18px; left: 35%; font-size: 24px; animation: float 3s infinite ease-in-out; }}
     @keyframes float {{ 0%, 100% {{ transform: translateY(0); }} 50% {{ transform: translateY(-7px) rotate(3deg); }} }}
     
     .av {{ width: 50px; height: 50px; background: #22D3EE; color: #083344 !important; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: 800; }}
-    .logout-btn {{ background: #EF4444; color: white !important; padding: 5px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px; text-decoration: none; }}
-    
-    /* Ajuste para o popover do sino na barra laranja */
-    div[data-testid="stPopover"] button {{ background: transparent !important; border: none !important; color: white !important; font-size: 24px !important; }}
+    .logout-btn {{ background: #EF4444; color: white !important; padding: 5px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px; text-decoration: none; }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -88,13 +81,13 @@ def get_data(aba):
         return conn.read(worksheet=aba, ttl=0, header=None)
     except: return None
 
-def clean_p(v):
+def clean_v(v):
     if pd.isna(v) or v == "": return 0.0
     return pd.to_numeric(str(v).replace('%','').replace(',','.'), errors='coerce')
 
 if 'auth' not in st.session_state: st.session_state.auth = False
 
-# --- TELA DE LOGIN ---
+# --- LOGIN ---
 if not st.session_state.auth:
     col_l, _ = st.columns([1, 2])
     with col_l:
@@ -110,66 +103,62 @@ if not st.session_state.auth:
                         st.rerun()
                     else: st.error("Dados incorretos.")
 
-# --- PORTAL PRINCIPAL ---
+# --- APP PRINCIPAL ---
 else:
-    user = st.session_state.user
-    p_nome = str(user['Nome']).split()[0].upper()
+    u = st.session_state.user
+    p_nome = str(u['Nome']).split()[0].upper()
 
-    # 3. Processamento AJ1:BO24 (RELATÓRIO)
+    # 3. Processamento de Dados (Intervalo AJ1:BO24)
     df_raw = get_data("DADOS-DIA")
     df_rel = get_data("RELATÓRIO")
     
     if df_raw is not None and df_rel is not None:
-        # Ranking Geral
         rk = df_raw.iloc[1:24, [0, 1]].dropna()
         rk.columns = ["Nome", "Meta_Str"]
-        rk['Meta_Num'] = rk['Meta_Str'].apply(clean_p)
+        rk['Meta_Num'] = rk['Meta_Str'].apply(clean_v)
         rk = rk.sort_values(by='Meta_Num', ascending=False).reset_index(drop=True)
 
-        # Gráfico: AJ1:BO24
-        df_ev = df_rel.iloc[0:24, 35:67].copy() # AJ(35) até BO(66)
+        # Gráfico AJ1:BO24
+        df_ev = df_rel.iloc[0:24, 35:67].copy() 
         df_ev.columns = df_ev.iloc[0].astype(str) # Datas (AK1:BO1)
-        # Filtra o colaborador pelo nome na coluna AJ
         u_ev_row = df_ev[df_ev.iloc[:, 0].astype(str).str.upper().str.contains(p_nome, na=False)]
         
-        u_match = rk[rk['Nome'].astype(str).str.upper().str.contains(p_nome, na=False)]
-        posicao = f"{u_match.index[0] + 1}º" if not u_match.empty else "N/A"
+        u_rk = rk[rk['Nome'].astype(str).str.upper().str.contains(p_nome, na=False)]
+        pos = f"{u_rk.index[0] + 1}º" if not u_rk.empty else "N/A"
 
-        # 4. NAVBAR SUPERIOR BRANCA (Logo Atlas e Sair)
-        logo_html = f'<img src="data:image/png;base64,{logo_64}">' if logo_64 else '<span style="color:#F97316; font-weight:900; font-size:24px;">ATLAS</span>'
+        # 4. CABEÇALHO SUPERIOR (Logo Atlas e Sair)
+        logo_img = f'<img src="data:image/png;base64,{logo_code}">' if logo_code else '<span style="color:#F97316; font-weight:900; font-size:22px;">ATLAS</span>'
         st.markdown(f'''
-            <div class="header-white">
-                <div class="logo-container">{logo_html}</div>
+            <div class="nav-main">
+                <div class="brand-logo">{logo_img}</div>
                 <div style="display:flex; align-items:center; gap:20px;">
-                    <div style="font-size:12px; color:{colors['text']};">{user["Nome"]} | 2026 <span style="color:#F97316">●</span></div>
+                    <div style="font-size:12px; font-weight:600;">{u["Nome"]} | 2026 <span style="color:#F97316">●</span></div>
                     <a href="/" target="_self" class="logout-btn" onclick="window.location.reload()">SAIR</a>
                 </div>
             </div>
         ''', unsafe_allow_html=True)
 
-        # 5. BARRA LARANJA INTEGRADA (Sino, Dados e Tema)
-        # Usamos st.container com colunas para simular a barra
-        with st.container():
-            st.markdown('<div class="header-orange">', unsafe_allow_html=True)
-            # Colunas proporcionais para caber tudo
-            c_sino, c_col, c_per, c_stat, c_unid, c_lua = st.columns([0.6, 1.2, 1.4, 1.2, 2.5, 0.6])
-            
-            with c_sino:
-                with st.popover("🔔", help="Informativos"):
-                    st.markdown("<h3 style='color:#111827'>📢 Notificações</h3>", unsafe_allow_html=True)
-                    st.info("Nenhuma nova notificação do gestor.")
-            
-            with c_col: st.markdown(f'<div class="orange-item"><div class="orange-label">SUA COLOCAÇÃO</div><div class="orange-value">🏆 {posicao}</div></div>', unsafe_allow_html=True)
-            with c_per: st.markdown(f'<div class="orange-item"><div class="orange-label">PERÍODO</div><div class="orange-value">JANEIRO / 2026</div></div>', unsafe_allow_html=True)
-            with c_stat: st.markdown(f'<div class="orange-item"><div class="orange-label">STATUS</div><div class="orange-value">🟢 ONLINE</div></div>', unsafe_allow_html=True)
-            with c_unid: st.markdown(f'<div class="orange-item"><div class="orange-label">UNIDADE</div><div class="orange-value">CALL CENTER PDF</div></div>', unsafe_allow_html=True)
-            with c_lua: st.toggle("🌙", value=st.session_state.dark_mode, on_change=toggle_theme, key="dark_tgl")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown('<div class="main-content">', unsafe_allow_html=True)
+        # 5. FAIXA DE MÉTRICAS INTEGRADA (Sino, Colocação, Período, Status, Unidade, Tema)
+        st.markdown('<div class="metric-strip">', unsafe_allow_html=True)
+        # 6 Colunas para as informações
+        mc0, mc1, mc2, mc3, mc4, mc5 = st.columns([0.5, 1.5, 1.5, 1.5, 2.5, 0.5])
         
-        # 6. RANKING E GRÁFICO (50/50)
+        with mc0:
+            with st.popover("🔔", help="Informativos"):
+                st.markdown("<h3 style='color:#111827'>📢 Avisos</h3>", unsafe_allow_html=True)
+                st.info("Nenhuma nova notificação.")
+        
+        with mc1: st.markdown(f'<div class="metric-box"><div class="metric-label">SUA COLOCAÇÃO</div><div class="metric-value">🏆 {pos}</div></div>', unsafe_allow_html=True)
+        with mc2: st.markdown(f'<div class="metric-box"><div class="metric-label">PERÍODO</div><div class="metric-value">JANEIRO / 2026</div></div>', unsafe_allow_html=True)
+        with mc3: st.markdown(f'<div class="metric-box"><div class="metric-label">STATUS</div><div class="metric-value">🟢 ONLINE</div></div>', unsafe_allow_html=True)
+        with mc4: st.markdown(f'<div class="metric-box"><div class="metric-label">UNIDADE</div><div class="metric-value">CALL CENTER PDF</div></div>', unsafe_allow_html=True)
+        with mc5: st.toggle("🌙", value=st.session_state.dark_mode, on_change=toggle_theme, key="dark_tgl")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # 6. CONTEÚDO PRINCIPAL (Ranking e Gráfico AJ1:BO24)
+        st.markdown('<div class="main-content">', unsafe_allow_html=True)
         col_rank, col_chart = st.columns(2)
+        
         with col_rank:
             st.markdown("### 🏆 Ranking da Equipe")
             st.dataframe(rk[["Nome", "Meta_Str"]], use_container_width=True, hide_index=True, height=350)
@@ -177,14 +166,14 @@ else:
         with col_chart:
             st.markdown(f"### 📈 Histórico de Performance - {p_nome.title()}")
             if not u_ev_row.empty:
-                # Prepara dados para o gráfico AJ1:BO24
+                # Transposição para o gráfico de linhas
                 plot_df = u_ev_row.iloc[0:1, 1:].transpose()
                 plot_df.columns = ["Meta"]
-                plot_df["Meta"] = plot_df["Meta"].apply(clean_p)
+                plot_df["Meta"] = plot_df["Meta"].apply(clean_v)
                 st.line_chart(plot_df, height=350, color=colors["chart"])
-            else: st.warning(f"Aguardando dados de {p_nome} no relatório.")
+            else: st.warning(f"Dados não localizados para {p_nome} no relatório AJ1:BO24.")
 
-        # 7. PERFORMANCE INDIVIDUAL COM COROAS RESTAURADAS
+        # 7. PERFORMANCE INDIVIDUAL (Cards com Coroa Restaurada)
         st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
         cols = st.columns(8)
         for idx, row in rk.iterrows():
@@ -201,4 +190,4 @@ else:
                         <div style="font-size:22px;font-weight:800;color:{color_c};">{row["Meta_Str"]}</div>
                     </div>
                 ''', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
