@@ -1,36 +1,36 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 
-# 1. Configuração de Página: Força a barra lateral expandida
+# 1. Configuração de Página: Força a barra lateral a aparecer aberta
 st.set_page_config(page_title="Equipe Atlas", page_icon="🌊", layout="wide", initial_sidebar_state="expanded")
 
-# 2. CSS: Navbar Superior, Barra Laranja e Sidebar Visível
+# 2. CSS Profissional: Navbar Superior, Barra Laranja Larga e Sidebar
 st.markdown("""
     <style>
     header, footer, #MainMenu {visibility: hidden;}
     .stApp { background: #FFF; font-family: 'Inter', sans-serif; }
     
-    /* Barra Lateral Esquerda */
+    /* Barra Lateral Esquerda Diferenciada */
     [data-testid="stSidebar"] { background-color: #F8F9FA !important; border-right: 1px solid #E5E7EB; }
     
-    /* Cabeçalho Superior Branco (Atlas + Identificação) */
+    /* Topo: Equipe Atlas e Identificação (Canto Direito) */
     .nav-white { position: fixed; top: 0; left: 0; width: 100%; height: 55px; background: #FFF; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; z-index: 1001; border-bottom: 1px solid #EEE; }
-    .brand { font-size: 26px; font-weight: 900; color: #111827; letter-spacing: -1.2px; }
-    .user-id { font-size: 13px; color: #374151; font-weight: 500; }
+    .brand { font-size: 28px; font-weight: 900; color: #111827; letter-spacing: -1.5px; }
+    .user-info { font-size: 13px; color: #374151; font-weight: 500; }
 
-    /* Barra Laranja Larga (Central de Informações) */
-    .nav-orange { position: fixed; top: 55px; left: 0; width: 100%; height: 85px; background: #A33B20; display: flex; align-items: center; justify-content: space-around; z-index: 1000; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    /* Barra Laranja Larga e Informativa */
+    .nav-orange { position: fixed; top: 55px; left: 0; width: 100%; height: 90px; background: #A33B20; display: flex; align-items: center; justify-content: space-around; z-index: 1000; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
     .nav-item { text-align: center; }
     .nav-label { font-size: 11px; text-transform: uppercase; opacity: 0.9; font-weight: 800; letter-spacing: 0.5px; }
-    .nav-value { font-size: 17px; font-weight: 700; margin-top: 3px; }
+    .nav-value { font-size: 18px; font-weight: 700; margin-top: 4px; }
 
-    .main-content { margin-top: 160px; }
+    .main-content { margin-top: 170px; }
     
-    /* Cards Premium e Coroa */
-    .card { position: relative; background: #FFF; padding: 15px; border-radius: 15px; border: 1px solid #F3F4F6; text-align: center; margin-bottom: 25px; height: 165px; box-shadow: 0 4px 6px rgba(0,0,0,0.04); }
-    .crown { position: absolute; top: -22px; left: 35%; font-size: 26px; animation: float 3s infinite ease-in-out; }
-    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px) rotate(3deg); } }
-    .av { width: 45px; height: 45px; background: #22D3EE; color: #083344; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: 800; }
+    /* Cards Compactos e Animados */
+    .card { position: relative; background: #FFF; padding: 15px; border-radius: 15px; border: 1px solid #F3F4F6; text-align: center; margin-bottom: 25px; height: 165px; box-shadow: 0 4px 6px rgba(0,0,0,0.04); transition: 0.3s; }
+    .crown { position: absolute; top: -20px; left: 35%; font-size: 26px; animation: float 3s infinite ease-in-out; }
+    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px) rotate(5deg); } }
+    .av { width: 45px; height: 45px; background: #22D3EE; color: #083344; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-weight: 800; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -59,31 +59,31 @@ if not st.session_state.auth:
 else:
     u = st.session_state.user
     
-    # 3. BARRA LATERAL (SIDEBAR)
+    # 3. BARRA LATERAL (SIDEBAR) COM OPÇÃO SAIR
     with st.sidebar:
-        st.markdown(f"### 🌊 Navegação")
-        st.write(f"Operador: **{short_name(u['Nome'])}**")
+        st.markdown(f"### 🌊 Menu Atlas")
+        st.info(f"Conectado: **{short_name(u['Nome'])}**")
         st.write("---")
         if st.button("🚪 Sair da Conta", use_container_width=True):
             st.session_state.auth = False
             st.rerun()
 
-    # Processamento de Dados do Dia
+    # Processamento do Ranking
     df = get_data("DADOS-DIA")
     rk = df.iloc[1:24, [0, 1]].dropna()
     rk.columns = ["Nome", "Meta_Str"]
     rk['Meta_Num'] = rk['Meta_Str'].str.replace('%','').str.replace(',','.').astype(float)
     rk = rk.sort_values(by='Meta_Num', ascending=False).reset_index(drop=True)
     
-    # Localização do Colaborador no Ranking
+    # Lógica de Colocação Automática
     user_match = rk[rk['Nome'].str.contains(u['Nome'].split()[0], case=False, na=False)]
     colocacao = f"{user_match.index[0] + 1}º" if not user_match.empty else "N/A"
 
-    # 4. BARRA SUPERIOR DUPLA
+    # 4. NAVBAR DUPLA (BRANCA + LARANJA)
     st.markdown(f'''
         <div class="nav-white">
             <div class="brand">🌊 EQUIPE ATLAS</div>
-            <div class="user-id"><span style="color:#F97316">●</span> {u["Nome"]} | 2026</div>
+            <div class="user-info"><span style="color:#F97316">●</span> {u["Nome"]} | 2026</div>
         </div>
         <div class="nav-orange">
             <div class="nav-item"><div class="nav-label">SUA COLOCAÇÃO</div><div class="nav-value">🏆 {colocacao}</div></div>
@@ -103,7 +103,7 @@ else:
         cols = st.columns(8)
         for idx, row in rk.iterrows():
             val = row['Meta_Num']
-            color = "#10B981" if val >= 80 else "#EF4444" # Lógica de Cores Simples
+            color = "#10B981" if val >= 80 else "#EF4444" # Verde >= 80%, Vermelho abaixo
             ini = "".join([n[0] for n in row['Nome'].split()[:2]]).upper()
             crown = '<div class="crown">👑</div>' if val >= 80 else ''
             
