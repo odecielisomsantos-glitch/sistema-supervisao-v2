@@ -1,58 +1,83 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
+from datetime import datetime
 
-st.set_page_config(page_title="Team Brisa", page_icon="🌊")
+# Configuração com Layout Centralizado
+st.set_page_config(page_title="Team Brisa | Login", page_icon="🌊", layout="centered")
 
-def get_data():
+# CSS Personalizado para Visual Profissional e Minimalista
+st.markdown("""
+    <style>
+    .stApp { background-color: #f8f9fa; }
+    .stButton>button {
+        width: 100%;
+        border-radius: 5px;
+        height: 3em;
+        background-color: #007bff;
+        color: white;
+        font-weight: bold;
+        border: none;
+    }
+    .main { background-color: #ffffff; padding: 30px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    div[data-testid="stForm"] { border: none !important; padding: 0; }
+    </style>
+""", unsafe_allow_html=True)
+
+def get_data(aba):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
-        # Lendo sem cabeçalho para evitar erro de nome de coluna e limpando cache (ttl=0)
-        df = conn.read(worksheet="Usuarios", ttl=0, header=None)
-        
-        # Remove a primeira linha (onde estão os títulos) e redefine os dados
-        df = df.iloc[1:].copy()
-        
-        # Forçamos a conversão de todas as células para texto limpo
-        for col in df.columns:
-            df[col] = df[col].astype(str).str.strip()
-            
-        return df
-    except Exception as e:
-        st.error(f"Erro de conexão: {e}")
-        return None
+        return conn.read(worksheet=aba, ttl=0)
+    except: return None
 
 if 'auth' not in st.session_state: st.session_state.auth = False
 
 if not st.session_state.auth:
-    st.title("🌊 Login Team Brisa")
-    with st.form("l"):
-        u_input = st.text_input("Usuário").strip().lower()
-        p_input = st.text_input("Senha", type="password").strip()
+    # Container centralizado para o login
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        st.markdown("<h1 style='text-align: center; color: #1c1c1c;'>TEAM BRISA</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #6c757d;'>Portal de Acesso Seguro</p>", unsafe_allow_html=True)
+        st.write("---")
         
-        if st.form_submit_button("ENTRAR"):
-            df = get_data()
-            if df is not None:
-                # Na sua planilha: Coluna 0=Usuario, 1=Senha, 2=Nome, 3=Funcao
-                # Comparamos ignorando maiúsculas no usuário
-                user_match = df[(df[0].str.lower() == u_input) & (df[1] == p_input)]
-                
-                if not user_match.empty:
-                    st.session_state.auth = True
-                    # Guardamos os dados em um formato fácil de usar
-                    st.session_state.user = {
-                        "Nome": user_match.iloc[0][2],
-                        "Funcao": user_match.iloc[0][3]
-                    }
-                    st.rerun()
-                else:
-                    st.error("Dados incorretos. Verifique usuário e senha.")
+        with st.form("login_form"):
+            u_in = st.text_input("Usuário").strip().lower()
+            p_in = st.text_input("Senha", type="password").strip()
+            
+            st.write("") # Espaçamento
+            if st.form_submit_button("ENTRAR NO SISTEMA"):
+                df = get_data("Usuarios")
+                if df is not None:
+                    df = df.astype(str)
+                    user = df[(df['Usuario'].str.lower() == u_in) & (df['Senha'] == p_in)]
+                    if not user.empty:
+                        st.session_state.auth = True
+                        st.session_state.user = user.iloc[0].to_dict()
+                        st.rerun()
+                    else: st.error("Credenciais inválidas. Tente novamente.")
+                else: st.error("Erro técnico: Banco de dados inacessível.")
+        
+        st.markdown("<p style='text-align: center; font-size: 12px; color: #adb5bd; margin-top: 50px;'>© 2026 Team Brisa Tecnologia</p>", unsafe_allow_html=True)
+
 else:
+    # Interface do Sistema após o login
     u = st.session_state.user
-    st.sidebar.title(f"Oi, {u['Nome']}")
-    if st.sidebar.button("Sair"):
+    st.sidebar.title("🌊 MENU")
+    st.sidebar.write(f"Conectado: **{u['Nome']}**")
+    if st.sidebar.button("Encerrar Sessão"):
         st.session_state.auth = False
         st.rerun()
 
-    st.title(f"Painel {u['Funcao'].upper()}")
-    st.success(f"Logado com sucesso como {u['Nome']}!")
+    st.title(f"Painel de Controle: {u['Funcao'].capitalize()}")
+    st.info(f"Bem-vindo de volta, {u['Nome']}!")
+
+    # Exemplo de conteúdo minimalista baseado na função
+    if u['Funcao'] == 'gestor':
+        st.subheader("Indicadores de Hoje")
+        kpi1, kpi2 = st.columns(2)
+        kpi1.metric("Status da Rede", "Ativa", "100%")
+        kpi2.metric("Chamados Pendentes", "4", "-2")
+    else:
+        st.subheader("Suas Atividades")
+        st.button("Iniciar Novo Registro")
