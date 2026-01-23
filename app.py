@@ -13,18 +13,17 @@ if 'dark_mode' not in st.session_state:
 def toggle_theme():
     st.session_state.dark_mode = not st.session_state.dark_mode
 
-# Cores e Estilo Sênior
+# Cores Adaptativas e Estilo
 is_dark = st.session_state.dark_mode
 colors = {
     "bg": "#0E1117" if is_dark else "#FFFFFF",
     "text": "#F9FAFB" if is_dark else "#111827",
     "card_bg": "#1F2937" if is_dark else "#FFFFFF",
     "border": "#374151" if is_dark else "#EEE",
-    "chart_line": "#F97316", # Laranja Atlas solicitado
+    "chart_line": "#F97316",
     "grid": "rgba(255, 255, 255, 0.1)" if is_dark else "rgba(0, 0, 0, 0.05)"
 }
 
-# CSS para Navbars e Cards
 st.markdown(f"""
     <style>
     header, footer, #MainMenu {{visibility: hidden;}}
@@ -45,20 +44,18 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# Função de limpeza de dados (Sênior)
-def clean_numeric(val):
+# Tratamento de Dados Sênior
+def parse_percentage(val):
     if pd.isna(val) or val == "" or str(val).strip() == "0%": return 0.0
     try:
-        # Remove %, troca vírgula por ponto e converte para float
-        s_val = str(val).replace('%', '').replace(',', '.').strip()
-        return float(s_val)
+        return float(str(val).replace('%', '').replace(',', '.').strip())
     except: return 0.0
 
 def get_data(aba):
     conn = st.connection("gsheets", type=GSheetsConnection)
     return conn.read(worksheet=aba, ttl=0, header=None)
 
-# --- SISTEMA DE LOGIN ---
+# --- LOGIN ---
 if 'auth' not in st.session_state: st.session_state.auth = False
 if not st.session_state.auth:
     col_l, _ = st.columns([1, 2])
@@ -72,12 +69,12 @@ if not st.session_state.auth:
                 if not m.empty:
                     st.session_state.auth, st.session_state.user = True, m.iloc[0].to_dict()
                     st.rerun()
-                else: st.error("Dados incorretos.")
+                else: st.error("Incorreto.")
 
 # --- DASHBOARD ---
 else:
     u = st.session_state.user
-    p_nome = str(u['Nome']).upper().strip() # Nome para filtro
+    p_nome = str(u['Nome']).upper().strip() # Nome usado para o filtro do gráfico
 
     df_raw = get_data("DADOS-DIA")
     df_rel = get_data("RELATÓRIO")
@@ -86,22 +83,22 @@ else:
         # Ranking Geral
         rk = df_raw.iloc[1:24, [0, 1]].dropna()
         rk.columns = ["Nome", "Meta_Str"]
-        rk['Meta_Num'] = rk['Meta_Str'].apply(clean_numeric)
+        rk['Meta_Num'] = rk['Meta_Str'].apply(parse_percentage)
         rk = rk.sort_values(by='Meta_Num', ascending=False).reset_index(drop=True)
 
         # 2. Processamento RELATÓRIO AJ1:BO24
-        # AJ é a coluna 36 (index 35 no pandas)
+        # AJ é a coluna index 35
         df_evol_slice = df_rel.iloc[0:24, 35:67].copy() 
-        dates_header = df_evol_slice.iloc[0, 1:].tolist() # AK1:BO1 (Datas)
+        dates_x = df_evol_slice.iloc[0, 1:].tolist() # Datas da linha 1 (AK1:BO1)
         
-        # Filtro do Operador logado
-        primeiro_nome = p_nome.split()[0]
-        operator_row = df_evol_slice[df_evol_slice.iloc[:, 0].astype(str).str.upper().str.contains(primeiro_nome, na=False)]
+        # Filtro do Operador logado (Busca na coluna AJ)
+        # Usamos o primeiro nome para garantir o match mesmo com variações
+        operator_data = df_evol_slice[df_evol_slice.iloc[:, 0].astype(str).str.upper().str.contains(p_nome.split()[0], na=False)]
         
-        u_rk_match = rk[rk['Nome'].astype(str).str.upper().str.contains(primeiro_nome, na=False)]
+        u_rk_match = rk[rk['Nome'].astype(str).str.upper().str.contains(p_nome.split()[0], na=False)]
         pos = f"{u_rk_match.index[0] + 1}º" if not u_rk_match.empty else "N/A"
 
-        # HEADER E MÉTRICAS
+        # HEADER E MÉTODOS
         st.markdown(f'''
             <div class="nav-main">
                 <div class="brand-logo"><span style="color:#F97316; font-weight:900; font-size:22px;">ATLAS</span></div>
@@ -113,9 +110,10 @@ else:
             <div class="metric-strip">
         ''', unsafe_allow_html=True)
         
+        # Correção da Sintaxe do Popover
         mc0, mc1, mc2, mc3, mc4, mc5 = st.columns([0.5, 1.5, 1.5, 1.5, 2.5, 0.5])
         with mc0: 
-            with st.popover("🔔"): # Correção da sintaxe do popover
+            with st.popover("🔔"):
                 st.info("Sem avisos novos.")
         with mc1: st.markdown(f'<div class="metric-box"><div class="metric-label">SUA COLOCAÇÃO</div><div class="metric-value">🏆 {pos}</div></div>', unsafe_allow_html=True)
         with mc2: st.markdown(f'<div class="metric-box"><div class="metric-label">PERÍODO</div><div class="metric-value">JANEIRO / 2026</div></div>', unsafe_allow_html=True)
@@ -133,16 +131,15 @@ else:
         
         with col_chart:
             st.markdown(f"### 📈 Evolução Diária - {p_nome.title()}")
-            if not operator_row.empty:
-                # Tratamento de valores para Plotly
-                y_values = [clean_numeric(v) for v in operator_row.iloc[0, 1:].values]
+            if not operator_data.empty:
+                # Extração e Limpeza das porcentagens diárias
+                y_values = [parse_percentage(v) for v in operator_data.iloc[0, 1:].values]
                 
-                # GRÁFICO PLOTLY (Sênior)
+                # Renderização Plotly conforme referência
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
-                    x=dates_header, 
-                    y=y_values,
-                    mode='lines+markers', # Linhas + Marcadores conforme imagem
+                    x=dates_x, y=y_values,
+                    mode='lines+markers',
                     line=dict(color=colors['chart_line'], width=3),
                     marker=dict(size=8, color=colors['chart_line'], symbol='circle'),
                     hovertemplate='Data: %{x}<br>Valor: %{y:.2f}%<extra></extra>'
@@ -158,9 +155,9 @@ else:
                 )
                 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
             else:
-                st.warning(f"Operador {p_nome} não localizado em RELATÓRIO AJ1:BO24.")
+                st.warning(f"Dados não localizados para '{p_nome}' em RELATÓRIO AJ1:BO24.")
 
-        # Performance Individual com Coroas
+        # Cards com Coroa Restaurada
         st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
         cols = st.columns(8)
         for idx, row in rk.iterrows():
