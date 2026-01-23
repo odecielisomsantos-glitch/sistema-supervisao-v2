@@ -18,7 +18,7 @@ colors = {
     "text": "#F9FAFB" if dark else "#111827",
     "card_bg": "#1F2937" if dark else "#FFFFFF",
     "border": "#374151" if dark else "#EEE",
-    "chart_line": "#FF4B4B" # Vermelho conforme imagem solicitada
+    "chart_line": "#FF4B4B"
 }
 
 st.markdown(f"""
@@ -35,7 +35,17 @@ st.markdown(f"""
         justify-content: space-between; padding: 0 50px; z-index: 1001; 
         border-bottom: 1px solid {colors['border']}; 
     }}
-    .brand {{ font-size: 26px; font-weight: 900; color: {colors['text']}; letter-spacing: -1.2px; }}
+    
+    /* Ajuste para a Logo na Brand */
+    .brand {{ 
+        display: flex; 
+        align-items: center; 
+        height: 100%;
+    }}
+    .brand img {{
+        height: 45px; /* Altura ajustada para caber na barra de 55px */
+        width: auto;  /* Mantém a proporção da imagem */
+    }}
     
     .nav-orange {{ 
         position: fixed; top: 55px; left: 0; width: 100%; height: 85px; 
@@ -97,7 +107,7 @@ else:
     u = st.session_state.user
     primeiro_nome = str(u['Nome']).split()[0].upper()
 
-    # 3. Processamento de Dados (Intervalo AJ1:BO24)
+    # 3. Processamento de Dados
     df_raw = get_data("DADOS-DIA")
     df_rel = get_data("RELATÓRIO")
     
@@ -107,22 +117,22 @@ else:
         rk['Meta_Num'] = rk['Meta_Str'].apply(clean_val)
         rk = rk.sort_values(by='Meta_Num', ascending=False).reset_index(drop=True)
 
-        # Captura AJ1:BO24
-        # AJ é a coluna 36 (index 35), BO é a coluna 67 (index 66)
         df_evol_slice = df_rel.iloc[0:24, 35:67].copy() 
-        df_evol_slice.columns = df_evol_slice.iloc[0].astype(str) # Datas em AJ1:BO1
-        df_evol_data = df_evol_slice.iloc[1:] # Nomes e metas a partir da linha 2
+        df_evol_slice.columns = df_evol_slice.iloc[0].astype(str)
+        df_evol_data = df_evol_slice.iloc[1:]
         
-        # Filtro preciso do operador logado na coluna AJ (index 0 do slice)
         u_hist = df_evol_data[df_evol_data.iloc[:, 0].astype(str).str.upper().str.contains(primeiro_nome, na=False)]
         
         u_rk = rk[rk['Nome'].astype(str).str.upper().str.contains(primeiro_nome, na=False)]
         colocacao = f"{u_rk.index[0] + 1}º" if not u_rk.empty else "N/A"
 
-        # 4. NAVBAR SUPERIOR
+        # 4. NAVBAR SUPERIOR COM LOGO
+        # SUBSTITUA 'YOUR_IMAGE_SOURCE_HERE' PELO CAMINHO DA SUA IMAGEM OU BASE64
         st.markdown(f'''
             <div class="nav-white">
-                <div class="brand">🌊 EQUIPE ATLAS</div>
+                <div class="brand">
+                    <img src="YOUR_IMAGE_SOURCE_HERE" alt="Equipe Atlas Logo">
+                </div>
                 <div style="display:flex; align-items:center; gap:20px;">
                     <div style="font-size:12px;">{u["Nome"]} | 2026 <span style="color:#F97316">●</span></div>
                     <a href="/" target="_self" class="logout-btn" onclick="window.location.reload()">SAIR</a>
@@ -130,7 +140,7 @@ else:
             </div>
         ''', unsafe_allow_html=True)
 
-        # 5. BARRA LARANJA COM SINO E LUA
+        # 5. BARRA LARANJA
         st.markdown('<div class="nav-orange">', unsafe_allow_html=True)
         c_sino, c1, c2, c3, c_unid = st.columns([0.5, 1.5, 1.5, 1.5, 3.5])
         
@@ -153,7 +163,7 @@ else:
 
         st.markdown('<div class="main-content">', unsafe_allow_html=True)
         
-        # 6. CONTEÚDO 50/50: RANKING E GRÁFICO
+        # 6. CONTEÚDO 50/50
         col_rank, col_chart = st.columns(2)
         with col_rank:
             st.markdown("### 🏆 Ranking Geral")
@@ -161,14 +171,13 @@ else:
         with col_chart:
             st.markdown(f"### 📈 Histórico de Performance - {primeiro_nome.title()}")
             if not u_hist.empty:
-                # Transpõe para gráfico: Datas (X) e Metas (Y) no estilo solicitado
                 plot_df = u_hist.iloc[0:1, 1:].transpose()
                 plot_df.columns = ["Meta"]
                 plot_df["Meta"] = plot_df["Meta"].apply(clean_val)
                 st.line_chart(plot_df, height=350, color=colors["chart_line"])
             else: st.warning("Dados não localizados para o gráfico.")
 
-        # 7. PERFORMANCE INDIVIDUAL (CARDS)
+        # 7. PERFORMANCE INDIVIDUAL
         st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
         cols = st.columns(8)
         for idx, row in rk.iterrows():
