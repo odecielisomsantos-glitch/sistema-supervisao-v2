@@ -2,20 +2,20 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
-# Configuração de Layout Total (Wide) - Elimina espaços desnecessários
+# 1. Layout Total: Remove espaços laterais e centraliza o site
 st.set_page_config(page_title="Equipe Atlas", page_icon="🌊", layout="wide")
 
-# CSS: Centralização, Navbars e Cards Profissionais
+# 2. CSS: Navbars Fixas, Cards com Coroa e Estilização
 st.markdown("""
     <style>
     header, footer, #MainMenu {visibility: hidden;}
     .stApp { background: #FFF; font-family: 'Inter', sans-serif; }
     
-    /* Remove a margem da sidebar que não carrega e centraliza conteúdo */
+    /* Centralização do conteúdo sem a sidebar */
     section[data-testid="stSidebar"] { display: none; }
     .main .block-container { padding: 3rem 5rem; max-width: 100%; }
 
-    /* Navbars Fixas */
+    /* Navbars: Branco e Laranja */
     .nav-white { position: fixed; top: 0; left: 0; width: 100%; height: 55px; background: #FFF; display: flex; align-items: center; justify-content: space-between; padding: 0 50px; z-index: 1001; border-bottom: 1px solid #EEE; }
     .brand { font-size: 26px; font-weight: 900; color: #111827; letter-spacing: -1.2px; }
     
@@ -41,8 +41,8 @@ def get_data(aba):
     return conn.read(worksheet=aba, ttl=0, header=None)
 
 def clean_percent(v):
-    if pd.isna(v) or v == "": return 0.0
-    return pd.to_numeric(str(v).replace('%','').replace(',','.'), errors='coerce') / 100
+    if pd.isna(v) or v == "" or v == 0: return 0.0
+    return pd.to_numeric(str(v).replace('%','').replace(',','.'), errors='coerce')
 
 if 'auth' not in st.session_state: st.session_state.auth = False
 
@@ -59,31 +59,32 @@ if not st.session_state.auth:
             else: st.error("Dados incorretos")
 else:
     user = st.session_state.user
-    # Busca pelos dois primeiros nomes
-    search_name = " ".join(str(user['Nome']).split()[:2]).upper() # Ex: ALEXSANDRO ROCHA
+    # Busca por nome curta e robusta
+    search_name = " ".join(str(user['Nome']).upper().split()[:2]) 
 
+    # 3. Carregamento e Processamento de Dados
     df_raw = get_data("DADOS-DIA")
     df_rel_raw = get_data("RELATÓRIO")
 
-    # 1. Ranking Geral
+    # Ranking Geral
     rk = df_raw.iloc[1:24, [0, 1]].dropna()
     rk.columns = ["Nome", "Meta_Str"]
-    rk['Meta_Num'] = rk['Meta_Str'].apply(lambda x: clean_percent(x) * 100)
+    rk['Meta_Num'] = rk['Meta_Str'].apply(clean_percent)
     rk = rk.sort_values(by='Meta_Num', ascending=False).reset_index(drop=True)
 
-    # 2. Histórico Evolução (RELATÓRIO AJ2:AT25)
-    df_evol_slice = df_rel_raw.iloc[1:25, 35:46].copy() # Colunas AJ(35) até AT(45)
-    df_evol_slice.columns = df_evol_slice.iloc[0] # Linha AJ2:AT2 como cabeçalho (Datas)
-    df_evol_data = df_evol_slice.iloc[1:] # Dados dos operadores
+    # Gráfico de Evolução (Relatório AJ2:AT25)
+    df_evol = df_rel_raw.iloc[1:25, 35:46].copy() # AJ=35 até AT=45
+    df_evol.columns = df_evol.iloc[0].astype(str) # Linha AJ2:AT2 com as datas
+    df_evol_data = df_evol.iloc[1:]
     
-    # Filtro robusto pelo nome parcial
+    # Filtro Blindado: procura Alexsandro Rocha na lista
     u_evol = df_evol_data[df_evol_data.iloc[:, 0].astype(str).str.upper().str.contains(search_name, na=False)]
 
-    # Colocação
+    # Colocação Dinâmica
     u_rk = rk[rk['Nome'].astype(str).str.upper().str.contains(search_name, na=False)]
     colocacao = f"{u_rk.index[0] + 1}º" if not u_rk.empty else "N/A"
 
-    # Navbar Superior
+    # Navbar Superior com Botão Sair
     st.markdown(f'''
         <div class="nav-white">
             <div class="brand">🌊 EQUIPE ATLAS</div>
@@ -102,7 +103,7 @@ else:
 
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
     
-    # 3. Conteúdo em Duas Colunas Proporcionais
+    # 4. Layout 50/50
     col_l, col_r = st.columns(2)
     with col_l:
         st.markdown("### 🏆 Ranking Geral")
@@ -111,15 +112,15 @@ else:
     with col_r:
         st.markdown(f"### 📈 Histórico de Performance - {search_name.title()}")
         if not u_evol.empty:
-            # Transpõe para gráfico: Datas no X, Porcentagem no Y
+            # Transpõe para o gráfico: Datas (Eixo X) e Valores (Eixo Y)
             plot_df = u_evol.iloc[0:1, 1:].transpose()
             plot_df.columns = ["Meta"]
-            plot_df["Meta"] = plot_df["Meta"].apply(lambda x: clean_percent(x) * 100)
+            plot_df["Meta"] = plot_df["Meta"].apply(clean_percent)
             st.line_chart(plot_df, height=350, color="#F97316")
         else:
-            st.warning(f"Dados não localizados para '{search_name}' em RELATÓRIO AJ2:AT25.")
+            st.warning(f"Dados não localizados para '{search_name}' no Relatório.")
 
-    # 4. Cards de Performance Individual
+    # 5. Cards Individuais Otimizados
     st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
     cols = st.columns(8)
     for idx, row in rk.iterrows():
