@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import base64
 
-# 1. Configuração e Estilo Base
+# 1. Configuração e Estado Inicial
 st.set_page_config(page_title="Equipe Atlas", page_icon="🌊", layout="wide", initial_sidebar_state="collapsed")
 
 if 'dark_mode' not in st.session_state:
@@ -13,7 +13,7 @@ if 'dark_mode' not in st.session_state:
 def toggle_theme():
     st.session_state.dark_mode = not st.session_state.dark_mode
 
-# Conversão de Logo para Base64
+# Conversão da Logo para Base64 (Certifique-se de que o arquivo existe)
 def get_logo_64(path):
     try:
         with open(path, "rb") as f:
@@ -22,7 +22,7 @@ def get_logo_64(path):
 
 logo_code = get_logo_64("logo_atlas.png")
 
-# Variáveis de Cores para Modo Escuro
+# Variáveis de Cores para Modo Noturno
 is_dark = st.session_state.dark_mode
 colors = {
     "bg": "#0E1117" if is_dark else "#FFFFFF",
@@ -65,7 +65,7 @@ st.markdown(f"""
         border-radius: 16px; border: 1px solid {colors['border']}; 
         text-align: center; margin-bottom: 30px; height: 190px;
     }}
-    /* Coroa Animada para meta >= 80% */
+    /* Coroa Animada */
     .crown {{ position: absolute; top: -18px; left: 35%; font-size: 24px; animation: float 3s infinite ease-in-out; }}
     @keyframes float {{ 0%, 100% {{ transform: translateY(0); }} 50% {{ transform: translateY(-7px) rotate(3deg); }} }}
     
@@ -74,10 +74,8 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# Helper para Limpeza de Dados
 def clean_numeric(val):
     if pd.isna(val) or val == "": return 0.0
-    # Trata '95,5%' ou '95,5' -> 95.5
     return float(str(val).replace('%', '').replace(',', '.'))
 
 def get_data(aba):
@@ -86,7 +84,6 @@ def get_data(aba):
 
 # --- LOGIN ---
 if 'auth' not in st.session_state: st.session_state.auth = False
-
 if not st.session_state.auth:
     col_l, _ = st.columns([1, 2])
     with col_l:
@@ -99,12 +96,12 @@ if not st.session_state.auth:
                 if not m.empty:
                     st.session_state.auth, st.session_state.user = True, m.iloc[0].to_dict()
                     st.rerun()
-                else: st.error("Incorreto.")
+                else: st.error("Dados incorretos.")
 
 # --- APP PRINCIPAL ---
 else:
     u = st.session_state.user
-    p_nome = str(u['Nome']).upper().strip() # Nome para filtro
+    p_nome = str(u['Nome']).upper().strip()
 
     df_raw = get_data("DADOS-DIA")
     df_rel = get_data("RELATÓRIO")
@@ -117,14 +114,10 @@ else:
         rk = rk.sort_values(by='Meta_Num', ascending=False).reset_index(drop=True)
 
         # 2. Processamento RELATÓRIO AJ1:BO24
-        # AJ é coluna 35 (index) no Excel, no Pandas iloc: 35
         df_evol_raw = df_rel.iloc[0:24, 35:67].copy() 
         dates_header = df_evol_raw.iloc[0, 1:].tolist() # AK1:BO1
-        
-        # Filtro do Operador na Coluna AJ
         operator_row = df_evol_raw[df_evol_raw.iloc[:, 0].astype(str).str.upper().str.contains(p_nome.split()[0])]
         
-        # Dados das Métricas
         u_rk_match = rk[rk['Nome'].astype(str).str.upper().str.contains(p_nome.split()[0])]
         pos = f"{u_rk_match.index[0] + 1}º" if not u_rk_match.empty else "N/A"
 
@@ -162,52 +155,32 @@ else:
         with col_chart:
             st.markdown(f"### 📈 Evolução Diária - {p_nome.title()}")
             if not operator_row.empty:
-                # Preparar dados para o Plotly
                 y_values = [clean_numeric(v) for v in operator_row.iloc[0, 1:].values]
                 
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
-                    x=dates_header, 
-                    y=y_values,
-                    mode='lines+markers',
-                    name='Sua Performance',
+                    x=dates_header, y=y_values, mode='lines+markers',
                     line=dict(color=colors['chart_line'], width=3),
                     marker=dict(size=8, color=colors['chart_line'], symbol='circle'),
                     hovertemplate='Data: %{x}<br>Meta: %{y:.2f}%<extra></extra>'
                 ))
-
                 fig.update_layout(
-                    margin=dict(l=0, r=0, t=20, b=0),
-                    height=400,
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    xaxis=dict(
-                        showgrid=False, 
-                        color=colors['text'],
-                        tickfont=dict(size=10)
-                    ),
-                    yaxis=dict(
-                        range=[0, 105], 
-                        ticksuffix='%', 
-                        color=colors['text'],
-                        gridcolor=colors['grid'],
-                        zeroline=False
-                    ),
+                    margin=dict(l=0, r=0, t=20, b=0), height=400,
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    xaxis=dict(showgrid=False, color=colors['text'], tickfont=dict(size=10)),
+                    yaxis=dict(range=[0, 105], ticksuffix='%', color=colors['text'], gridcolor=colors['grid'], zeroline=False),
                     hovermode='x unified'
                 )
                 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-            else:
-                st.warning(f"Operador {p_nome} não encontrado em RELATÓRIO AJ1:BO24.")
+            else: st.warning("Dados não localizados.")
 
         # 5. CARDS INDIVIDUAIS
         st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
         cols = st.columns(8)
         for idx, row in rk.iterrows():
             val, color_c = row['Meta_Num'], ("#10B981" if row['Meta_Num'] >= 80 else "#EF4444")
-            # Restauração da lógica da Coroa
             crown_html = '<div class="crown">👑</div>' if val >= 80 else ''
             ini = "".join([n[0] for n in str(row['Nome']).split()[:2]]).upper()
-            
             with cols[idx % 8]:
                 st.markdown(f'''
                     <div class="card">
