@@ -3,7 +3,7 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import base64
 
-# 1. Configuração de Layout e Tema
+# 1. Configuração de Layout e Tema (Sem Sidebar)
 st.set_page_config(page_title="Equipe Atlas", page_icon="🌊", layout="wide", initial_sidebar_state="collapsed")
 
 if 'dark_mode' not in st.session_state:
@@ -12,14 +12,14 @@ if 'dark_mode' not in st.session_state:
 def toggle_theme():
     st.session_state.dark_mode = not st.session_state.dark_mode
 
-# Cores Adaptativas
+# Variáveis de Cores Adaptativas (Modo Noturno)
 is_dark = st.session_state.dark_mode
 colors = {
     "bg": "#0E1117" if is_dark else "#FFFFFF",
     "text": "#F9FAFB" if is_dark else "#111827",
     "card_bg": "#1A1C23" if is_dark else "#FFFFFF",
     "border": "#30363D" if is_dark else "#E5E7EB",
-    "info_bar": "#1F2937" if is_dark else "#F9FAFB"
+    "strip": "#1F2937" if is_dark else "#F9FAFB"
 }
 
 # 2. CSS: Navbars, Métricas e Coroas Animadas
@@ -38,7 +38,7 @@ st.markdown(f"""
     }}
     
     .metric-strip {{
-        margin-top: 55px; padding: 15px 40px; background: {colors['info_bar']};
+        margin-top: 55px; padding: 15px 40px; background: {colors['strip']};
         display: flex; align-items: center; justify-content: space-between;
         border-bottom: 1px solid {colors['border']};
     }}
@@ -48,6 +48,7 @@ st.markdown(f"""
 
     .main-content {{ margin-top: 20px; padding: 0 40px; color: {colors['text']}; }}
 
+    /* Cards e Coroa Restaurada */
     .card {{ 
         position: relative; background: {colors['card_bg']}; padding: 18px; 
         border-radius: 16px; border: 1px solid {colors['border']}; 
@@ -73,11 +74,12 @@ def clean_val(v):
 
 if 'auth' not in st.session_state: st.session_state.auth = False
 
-# --- LOGIN ---
+# --- TELA DE LOGIN ---
 if not st.session_state.auth:
     col_l, _ = st.columns([1, 2])
     with col_l:
         with st.form("login"):
+            st.subheader("Portal Equipe Atlas")
             u_in, p_in = st.text_input("Usuário").lower().strip(), st.text_input("Senha", type="password").strip()
             if st.form_submit_button("ACESSAR PORTAL"):
                 df_u = get_data("Usuarios").iloc[1:]
@@ -88,10 +90,10 @@ if not st.session_state.auth:
                     st.rerun()
                 else: st.error("Dados incorretos.")
 
-# --- APP PRINCIPAL ---
+# --- DASHBOARD PRINCIPAL ---
 else:
     u = st.session_state.user
-    p_nome = str(u['Nome']).upper().strip()
+    p_match = str(u['Nome']).upper().split()[0] # Primeiro nome para o match
 
     df_raw = get_data("DADOS-DIA")
     df_rel = get_data("RELATÓRIO")
@@ -103,64 +105,62 @@ else:
         rk['Meta_Num'] = rk['Meta_Str'].apply(clean_val)
         rk = rk.sort_values(by='Meta_Num', ascending=False).reset_index(drop=True)
 
-        # 3. Processamento RELATÓRIO AJ1:BO24
-        # Slice rigoroso: AJ(35) até BO(66)
-        df_evol_slice = df_rel.iloc[0:24, 35:67].copy() 
-        df_evol_slice.columns = df_evol_slice.iloc[0] # Linha 1 como cabeçalho
-        df_evol_data = df_evol_slice.iloc[1:] # Dados das linhas seguintes
+        # 3. ESPELHAMENTO RELATÓRIO AJ1:BO24
+        # AJ é a coluna index 35. BO é a 66.
+        df_espelho = df_rel.iloc[0:24, 35:67].copy() 
+        df_espelho.columns = df_espelho.iloc[0] # Datas como cabeçalho
+        u_rel_row = df_espelho[df_espelho.iloc[:, 0].astype(str).str.upper().str.contains(p_match, na=False)]
         
-        # Filtro pelo primeiro nome para evitar erros de match
-        p_match = p_nome.split()[0]
-        u_rel_row = df_evol_data[df_evol_data.iloc[:, 0].astype(str).str.upper().str.contains(p_match, na=False)]
-        
-        # Identificação de colocação
-        u_rk_match = rk[rk['Nome'].astype(str).str.upper().str.contains(p_match, na=False)]
-        pos = f"{u_rk_match.index[0] + 1}º" if not u_rk_match.empty else "N/A"
+        pos = f"{rk[rk['Nome'].astype(str).str.upper().str.contains(p_match, na=False)].index[0] + 1}º" if not rk.empty else "N/A"
 
-        # 4. CABEÇALHO E MÉTRICAS
+        # 4. CABEÇALHO SUPERIOR (Logo e Sair)
         st.markdown(f'''
             <div class="nav-main">
                 <div class="brand-logo"><span style="color:#F97316; font-weight:900; font-size:22px;">ATLAS</span></div>
                 <div style="display:flex; align-items:center; gap:20px;">
-                    <div style="font-size:12px; font-weight:600; color:{colors['text']};">{u["Nome"]} | 2026 ●</div>
+                    <div style="font-size:12px; font-weight:600;">{u["Nome"]} | 2026 ●</div>
                     <a href="/" target="_self" class="logout-btn" onclick="window.location.reload()">SAIR</a>
                 </div>
             </div>
-            <div class="metric-strip">
         ''', unsafe_allow_html=True)
+
+        # 5. FAIXA DE MÉTRICAS (Sino, Colocação, Período, Status, Unidade, Tema)
+        st.markdown('<div class="metric-strip">', unsafe_allow_html=True)
+        mc0, mc1, mc2, mc3, mc4, mc5 = st.columns([0.5, 1.5, 1.5, 1.5, 2.5, 0.5])
         
-        m0, m1, m2, m3, m4, m5 = st.columns([0.5, 1.5, 1.5, 1.5, 2.5, 0.5])
-        with m0: 
-            with st.popover("🔔"): st.info("Sem avisos novos.")
-        with m1: st.markdown(f'<div class="metric-box"><div class="metric-label">SUA COLOCAÇÃO</div><div class="metric-value">🏆 {pos}</div></div>', unsafe_allow_html=True)
-        with m2: st.markdown(f'<div class="metric-box"><div class="metric-label">PERÍODO</div><div class="metric-value">JANEIRO / 2026</div></div>', unsafe_allow_html=True)
-        with m3: st.markdown(f'<div class="metric-box"><div class="metric-label">STATUS</div><div class="metric-value">🟢 ONLINE</div></div>', unsafe_allow_html=True)
-        with m4: st.markdown(f'<div class="metric-box"><div class="metric-label">UNIDADE</div><div class="metric-value">CALL CENTER PDF</div></div>', unsafe_allow_html=True)
-        with m5: st.toggle("🌙", value=st.session_state.dark_mode, on_change=toggle_theme, key="dark_tgl")
+        with mc0: 
+            with st.popover("🔔"): st.info("Sem novas notificações.")
+        
+        with mc1: st.markdown(f'<div class="metric-box"><div class="metric-label">SUA COLOCAÇÃO</div><div class="metric-value">🏆 {pos}</div></div>', unsafe_allow_html=True)
+        with mc2: st.markdown(f'<div class="metric-box"><div class="metric-label">PERÍODO</div><div class="metric-value">JANEIRO / 2026</div></div>', unsafe_allow_html=True)
+        with mc3: st.markdown(f'<div class="metric-box"><div class="metric-label">STATUS</div><div class="metric-value">🟢 ONLINE</div></div>', unsafe_allow_html=True)
+        with mc4: st.markdown(f'<div class="metric-box"><div class="metric-label">UNIDADE</div><div class="metric-value">CALL CENTER PDF</div></div>', unsafe_allow_html=True)
+        with mc5: st.toggle("🌙", value=st.session_state.dark_mode, on_change=toggle_theme, key="dark_tgl")
         st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown('<div class="main-content">', unsafe_allow_html=True)
         
-        # 5. CONTEÚDO PRINCIPAL (Tabelas lado a lado)
-        col_rank, col_space = st.columns(2)
+        # 6. RANKING E ESPELHAMENTO ABAIXO
+        col_rank, col_info = st.columns(2)
         
         with col_rank:
             st.markdown("### 🏆 Ranking da Equipe")
-            st.dataframe(rk[["Nome", "Meta_Str"]], use_container_width=True, hide_index=True, height=350)
+            st.dataframe(rk[["Nome", "Meta_Str"]], use_container_width=True, hide_index=True, height=400)
             
-            # ADICIONADO ABAIXO DO RANKING: ESPELHO DA PLANILHA AJ1:BO24
+            # ESPELHAMENTO ABAIXO DO RANKING
             st.markdown("---")
-            st.markdown(f"### 📋 Seu Histórico (Espelho RELATÓRIO AJ1:BO24)")
+            st.markdown(f"### 📋 Histórico Diário (Espelho AJ1:BO24)")
             if not u_rel_row.empty:
                 st.dataframe(u_rel_row, use_container_width=True, hide_index=True)
             else:
-                st.warning(f"Não foi possível localizar o histórico de {p_match} na aba RELATÓRIO.")
+                st.warning(f"Histórico de '{p_match}' não encontrado no intervalo AJ1:BO24.")
 
-        # 6. PERFORMANCE INDIVIDUAL (CARDS COM COROA)
+        # 7. PERFORMANCE INDIVIDUAL (Cards com Coroa Restaurada)
         st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
         cols = st.columns(8)
         for idx, row in rk.iterrows():
             val, color_c = row['Meta_Num'], ("#10B981" if row['Meta_Num'] >= 80 else "#EF4444")
+            # Coroa para meta igual ou superior a 80%
             crown_html = '<div class="crown">👑</div>' if val >= 80 else ''
             ini = "".join([n[0] for n in str(row['Nome']).split()[:2]]).upper()
             
