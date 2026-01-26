@@ -3,17 +3,19 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import unicodedata
 
-# 1. SETUP DE ELITE
-st.set_page_config(page_title="Atlas - Centro de Comando", page_icon="👔", layout="wide", initial_sidebar_state="collapsed")
+# 1. SETUP DE ALTA PERFORMANCE
+st.set_page_config(page_title="Atlas Gestão", page_icon="👔", layout="wide", initial_sidebar_state="collapsed")
 
+# Persistência de Estado
 if 'dark' not in st.session_state: st.session_state.dark = True
 if 'mural' not in st.session_state: st.session_state.mural = "Foco total na operação!"
 
 def toggle(): st.session_state.dark = not st.session_state.dark
 def logout(): st.session_state.clear(); st.rerun()
 
-# 2. DESIGN SYSTEM (Scannability & Clarity)
-c = {"bg": "#0E1117" if st.session_state.dark else "#FFF", "tx": "#F9FAFB" if st.session_state.dark else "#111", "brd": "#30363D" if st.session_state.dark else "#E5E7EB", "bar": "#1F2937" if st.session_state.dark else "#F9FAFB"}
+# 2. DESIGN SYSTEM (Estilo Atlas Pro)
+is_dark = st.session_state.dark
+c = {"bg": "#0E1117" if is_dark else "#FFF", "tx": "#F9FAFB" if is_dark else "#111", "brd": "#30363D" if is_dark else "#E5E7EB", "bar": "#1F2937" if is_dark else "#F9FAFB"}
 
 st.markdown(f"""
     <style>
@@ -32,7 +34,7 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. MOTOR DE DADOS
+# 3. UTILITÁRIOS E DADOS
 @st.cache_data(ttl=60)
 def get_data(aba): return st.connection("gsheets", type=GSheetsConnection).read(worksheet=aba, ttl=0, header=None)
 
@@ -40,9 +42,12 @@ def norm(t): return "".join(ch for ch in unicodedata.normalize('NFD', str(t)) if
 
 def to_f(v):
     try:
-        val = float(str(v).replace('%','').replace(',','.'))
-        return val * 100 if val <= 1.05 else val
+        val = str(v).replace('%','').replace(',','.')
+        f = float(val)
+        return f * 100 if f <= 1.05 else f
     except: return 0.0
+
+def format_br(v): return f"{to_f(v):g}%".replace('.', ',')
 
 def get_style(metric, val_str):
     v, m = to_f(val_str), norm(metric)
@@ -63,7 +68,7 @@ if not st.session_state.auth:
             df_u = get_data("Usuarios").iloc[1:]; df_u.columns = ['U','P','N','F']
             match = df_u[(df_u['U'].astype(str) == u_in) & (df_u['P'].astype(str) == p_in)]
             if not match.empty: st.session_state.auth, st.session_state.user = True, match.iloc[0].to_dict(); st.rerun()
-            else: st.error("Incorreto")
+            else: st.error("Login Inválido")
 else:
     u = st.session_state.user
     role, p_nome = str(u['F']).upper().strip(), u['N'].upper().split()[0]
@@ -72,56 +77,66 @@ else:
     st.markdown(f'<div class="nav"><b style="color:#F97316; font-size:20px">ATLAS {"GESTÃO" if role != "OPERADOR" else ""}</b><div style="font-size:11px">{u["N"]} | {role}</div></div>', unsafe_allow_html=True)
     with st.sidebar: 
         st.button("Sair", on_click=logout, use_container_width=True)
-        st.toggle("🌙 Noturno", value=st.session_state.dark, on_change=toggle)
+        st.toggle("🌙 Modo Noturno", value=st.session_state.dark, on_change=toggle)
 
     df_raw = get_data("DADOS-DIA")
+    
+    # Processamento Comum do Ranking
     rk = df_raw.iloc[1:24, [0, 1]].dropna()
-    rk.columns = ["Nome", "M_Str"]; rk['N'] = rk['M_Str'].apply(to_f)
+    rk.columns = ["Nome", "M_Str"]
+    rk['N'] = rk['M_Str'].apply(to_f)
 
     # =================================================================
-    # ÁREA DO GESTOR (PROFISSIONAL & INTERATIVA)
+    # ÁREA DO GESTOR (FOCO ATUAL)
     # =================================================================
     if role in ["GESTOR", "GESTÃO"]:
         st.markdown('<div class="main-g">', unsafe_allow_html=True)
-        st.header(f"📊 Painel Gestão Strategica")
+        st.header(f"📊 Painel Gestão Atlas")
         
-        # KPIs Macro de Encantamento
+        # Métricas de Encantamento (Visão Macro)
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Média Equipe", f"{rk['N'].mean():.1f}%".replace('.',','), delta=f"{rk['N'].mean()-80:.1f}% vs Meta")
         c2.metric("Coroas (80%+)", f"{len(rk[rk['N']>=80])} 👑")
-        c3.metric("Foco Crítico", len(rk[rk['N']<70]))
+        c3.metric("Foco Crítico (<70%)", len(rk[rk['N']<70]))
         c4.metric("Total Operadores", len(rk))
         
-        t_radar, t_mural, t_audit = st.tabs(["🎯 Radar da Equipe", "📢 Mural de Avisos", "🔍 Auditoria por Operador"])
+        t_equipe, t_mural, t_audit = st.tabs(["🎯 Visão da Equipe", "📢 Central de Avisos", "🔍 Auditoria por Operador"])
         
-        with t_radar:
-            st.subheader("Ranking Detalhado")
-            st.dataframe(rk.sort_values("N", ascending=False), use_container_width=True, hide_index=True)
+        with t_equipe:
+            st.subheader("Ranking Consolidado")
+            # Ordenação corrigida para evitar KeyError
+            rk_sorted = rk.sort_values("N", ascending=False)
+            st.dataframe(rk_sorted[["Nome", "M_Str"]], use_container_width=True, hide_index=True)
             
         with t_mural:
             st.subheader("Comunicado para o Time")
-            st.session_state.mural = st.text_area("Aviso no Sininho:", value=st.session_state.mural)
-            if st.button("Disparar Mural"): st.success("Aviso atualizado!")
+            aviso_atual = st.text_area("Este aviso aparecerá no sininho dos operadores:", value=st.session_state.mural)
+            if st.button("Disparar Aviso"):
+                st.session_state.mural = aviso_atual
+                st.success("Mural atualizado com sucesso!")
             
         with t_audit:
-            st.subheader("Histórico A27:AG211")
-            op = st.selectbox("Selecione Operador:", rk["Nome"].unique())
-            df_h = df_raw.iloc[26:211, 0:33].copy()
-            df_h.columns = ["Nome", "Métrica"] + [f"D{i:02d}" for i in range(1, 32)]
-            df_h['Métrica'] = df_h['Métrica'].replace({"LIGAÇÃO": "INTERAÇÃO"})
-            st.dataframe(df_h[df_h['Nome'].apply(norm).str.contains(op.upper().split()[0], na=False)], use_container_width=True, hide_index=True)
+            st.subheader("Histórico Detalhado (A27:AG211)")
+            op_sel = st.selectbox("Selecione o Operador para Auditoria:", rk["Nome"].unique())
+            if op_sel:
+                df_h = df_raw.iloc[26:211, 0:33].copy()
+                df_h.columns = ["Nome", "Métrica"] + [f"Dia {i:02d}" for i in range(1, 32)]
+                df_h['Métrica'] = df_h['Métrica'].replace({"LIGAÇÃO": "INTERAÇÃO"})
+                audit_filt = df_h[df_h['Nome'].apply(norm).str.contains(norm(op_sel.split()[0]), na=False)]
+                st.dataframe(audit_filt, use_container_width=True, hide_index=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     # =================================================================
     # ÁREA DO OPERADOR (CONGELADA & ESTÁVEL)
     # =================================================================
     else:
+        # Recuperação do Dashboard Arthur Oliveira
         df_h = df_raw.iloc[26:211, 0:33].copy()
         m_map = {"INTERAÇÃO": "LIGAÇÃO"}
         m_data = {}
         u_block = df_h[df_h.iloc[:, 0].apply(norm).str.contains(p_nome, na=False)]
         
-        # Busca dinâmica das métricas [Ligação -> Interação]
+        # Lógica das Métricas Superiores
         for m in ["CSAT", "TPC", "INTERAÇÃO", "IR", "PONTUALIDADE", "META"]:
             row = u_block[u_block.iloc[:, 1].apply(norm) == norm(m_map.get(m, m))]
             if not row.empty:
@@ -129,35 +144,38 @@ else:
                 curr = vals[-1] if vals else "0%"
                 prev = vals[-2] if len(vals) > 1 else curr
                 arr = '<span style="color:#10B981;font-size:14px">▲</span>' if to_f(curr) > to_f(prev) else ('<span style="color:#EF4444;font-size:14px">▼</span>' if to_f(curr) < to_f(prev) else "")
-                m_data[m] = {"val": f"{to_f(curr):g}%".replace('.',','), "arr": arr, "col": get_style(m, curr)}
+                m_data[m] = {"val": format_br(curr), "arr": arr, "col": get_style(m, curr)}
             else: m_data[m] = {"val": "0%", "arr": "", "col": "#F97316"}
 
-        # Barra de Métricas
+        # Renderização da Barra
         st.markdown('<div class="m-strip">', unsafe_allow_html=True)
-        cols_m = st.columns([0.4, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 0.4])
-        with cols_m[0]: 
+        cols = st.columns([0.4, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 0.4])
+        with cols[0]: 
             with st.popover("🔔"): st.info(st.session_state.mural)
         for i, mk in enumerate(["CSAT", "TPC", "INTERAÇÃO", "IR", "PONTUALIDADE", "META"]):
             d = m_data[mk]
-            with cols_m[i+1]: st.markdown(f'<div class="m-box"><div class="m-lab">{mk}</div><div class="m-val" style="color:{d["col"]}">{d["val"]} {d["arr"]}</div></div>', unsafe_allow_html=True)
+            with cols[i+1]: st.markdown(f'<div class="m-box"><div class="m-lab">{mk}</div><div class="m-val" style="color:{d["col"]}">{d["val"]} {d["arr"]}</div></div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown('<div style="padding:20px 40px">', unsafe_allow_html=True)
         cl, cr = st.columns(2)
         with cl:
             st.markdown("### 🏆 Ranking")
-            st.dataframe(rk[["Nome", "M_Str"]].sort_values("N", ascending=False), use_container_width=True, hide_index=True, height=380)
+            # Ordenação corrigida também no operador
+            rk_op_sorted = rk.sort_values("N", ascending=False)
+            st.dataframe(rk_op_sorted[["Nome", "M_Str"]], use_container_width=True, hide_index=True, height=380)
         with cr:
             st.markdown(f"### 📈 Evolução Meta - {p_nome.title()}")
             u_meta = u_block[u_block.iloc[:, 1].apply(norm) == "META"]
             if not u_meta.empty:
                 st.line_chart(pd.DataFrame({"Dia": [f"{i:02d}" for i in range(1, 32)], "Meta": [to_f(v) for v in u_meta.iloc[0, 2:].values]}).set_index("Dia"), color="#F97316")
         
-        # Cards Individuais
+        # Cards de Performance
         st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
         cc = st.columns(8)
-        for i, row in rk.sort_values("N", ascending=False).reset_index(drop=True).iterrows():
-            crown = '<div class="crown">👑</div>' if row['N'] >= 80 else ''
+        rk_cards = rk.sort_values("N", ascending=False).reset_index(drop=True)
+        for i, row in rk_cards.iterrows():
+            crw = '<div class="crown">👑</div>' if row['N'] >= 80 else ''
             ini = "".join([n[0] for n in str(row['Nome']).split()[:2]]).upper()
-            with cc[i % 8]: st.markdown(f'<div class="card">{crown}<div class="av">{ini}</div><div style="font-size:10px;font-weight:700">{row["Nome"][:13]}</div><b style="color:{"#10B981" if row["N"] >= 80 else "#EF4444"}; font-size:18px">{row["M_Str"]}</b></div>', unsafe_allow_html=True)
+            with cc[i % 8]: st.markdown(f'<div class="card">{crw}<div class="av">{ini}</div><div style="font-size:10px;font-weight:700">{row["Nome"][:13]}</div><b style="color:{"#10B981" if row["N"] >= 80 else "#EF4444"}; font-size:18px">{row["M_Str"]}</b></div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
