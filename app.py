@@ -3,10 +3,9 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import unicodedata
 
-# 1. SETUP DE ELITE
-st.set_page_config(page_title="Atlas Portal", page_icon="👔", layout="wide", initial_sidebar_state="collapsed")
+# 1. SETUP DE ELITE E DESIGN SYSTEM
+st.set_page_config(page_title="Atlas Gestão", page_icon="👔", layout="wide", initial_sidebar_state="collapsed")
 
-# Inicialização de Memória Persistente
 if 'dark' not in st.session_state: st.session_state.dark = True
 if 'mural' not in st.session_state: st.session_state.mural = "Foco total na operação!"
 if 'auth' not in st.session_state: st.session_state.auth = False
@@ -14,7 +13,6 @@ if 'auth' not in st.session_state: st.session_state.auth = False
 def toggle(): st.session_state.dark = not st.session_state.dark
 def logout(): st.session_state.clear(); st.rerun()
 
-# 2. DESIGN SYSTEM (Corrigindo a "Tela Preta")
 is_dark = st.session_state.dark
 c = {
     "bg": "#0E1117" if is_dark else "#F0F2F6", 
@@ -27,19 +25,12 @@ st.markdown(f"""
     <style>
     header, footer, #MainMenu {{visibility: hidden;}}
     .stApp {{ background-color: {c['bg']}; color: {c['tx']}; font-family: 'Inter', sans-serif; }}
-    
-    /* Navbar Superior */
     .nav {{ position: fixed; top: 0; left: 0; width: 100%; height: 55px; background: {c['bg']}; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; z-index: 1001; border-bottom: 1px solid {c['brd']}; }}
-    
-    /* Login Centralizado */
     .login-box {{ background: {c['card']}; padding: 40px; border-radius: 15px; border: 1px solid {c['brd']}; text-align: center; margin-top: 100px; }}
-    
-    /* Dashboards */
     .m-strip {{ margin-top: 55px; padding: 12px 40px; background: {c['card']}; border-bottom: 1px solid {c['brd']}; }}
     .m-box {{ text-align: center; flex: 1; border-right: 1px solid {c['brd']}; padding: 5px; }}
     .m-lab {{ font-size: 11px; opacity: 0.8; font-weight: 800; text-transform: uppercase; }}
     .m-val {{ font-size: 22px; font-weight: 900; display: flex; align-items: center; justify-content: center; gap: 4px; }}
-    
     .card {{ position: relative; background: {c['card']}; padding: 15px; border-radius: 12px; border: 1px solid {c['brd']}; text-align: center; height: 175px; }}
     .crown {{ position: absolute; top: -15px; left: 35%; font-size: 22px; animation: float 3s infinite; }}
     @keyframes float {{ 50% {{ transform: translateY(-6px); }} }}
@@ -48,7 +39,7 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. MOTOR DE DADOS
+# 2. MOTOR DE DADOS E FORMATAÇÃO
 @st.cache_data(ttl=60)
 def get_data(aba):
     try: return st.connection("gsheets", type=GSheetsConnection).read(worksheet=aba, ttl=0, header=None)
@@ -63,6 +54,18 @@ def to_f(v):
         return f * 100 if f <= 1.05 else f
     except: return 0.0
 
+def format_audit_cell(v):
+    """Converte decimais estranhos (0.6667) para porcentagem legível (66,67%)"""
+    if pd.isna(v) or str(v).strip() in ["", "0", "0%"]: return "0%"
+    try:
+        val = float(str(v).replace('%', '').replace(',', '.'))
+        # Se for um decimal menor que 1.05 (ex: 0.6667), multiplica por 100
+        if val <= 1.05: val = val * 100
+        # Formata com vírgula e remove zeros desnecessários
+        return f"{val:g}%".replace('.', ',')
+    except:
+        return str(v)
+
 def get_style(metric, val_str):
     v, m = to_f(val_str), norm(metric)
     if m in ["CSAT", "IR", "INTERACAO", "META"]: return "#10B981" if v >= 80 else ("#FACC15" if v >= 70 else "#F97316")
@@ -70,81 +73,81 @@ def get_style(metric, val_str):
     if m == "PONTUALIDADE": return "#10B981" if v >= 90 else ("#FACC15" if v >= 85 else "#F97316")
     return "#F97316"
 
-# --- TELA DE LOGIN (CORRIGIDA) ---
+# --- LOGIN ---
 if not st.session_state.auth:
     _, cent, _ = st.columns([1, 1.2, 1])
     with cent.container():
         st.markdown('<div class="login-box">', unsafe_allow_html=True)
-        st.subheader("Atlas - Acesso ao Portal")
+        st.subheader("Atlas - Acesso")
         with st.form("login"):
-            u_in = st.text_input("Usuário").lower().strip()
-            p_in = st.text_input("Senha", type="password")
+            u_in, p_in = st.text_input("Usuário").lower().strip(), st.text_input("Senha", type="password")
             if st.form_submit_button("ACESSAR SISTEMA", use_container_width=True):
                 df_u = get_data("Usuarios").iloc[1:]; df_u.columns = ['U','P','N','F']
                 match = df_u[(df_u['U'].astype(str) == u_in) & (df_u['P'].astype(str) == p_in)]
                 if not match.empty:
                     st.session_state.auth, st.session_state.user = True, match.iloc[0].to_dict()
                     st.rerun()
-                else: st.error("Login Inválido")
+                else: st.error("Incorreto")
         st.markdown('</div>', unsafe_allow_html=True)
-        # Toggle de tema acessível mesmo no login
         st.toggle("🌙 Modo Noturno", value=st.session_state.dark, on_change=toggle, key="login_tgl")
 
 # --- DASHBOARDS ---
 else:
-    u = st.session_state.user
-    role, p_nome = str(u['F']).upper().strip(), u['N'].upper().split()[0]
+    user = st.session_state.user
+    role, p_nome = str(user['F']).upper().strip(), user['N'].upper().split()[0]
     
-    # Navbar Global
-    st.markdown(f'<div class="nav"><b style="color:#F97316; font-size:20px">ATLAS {"GESTÃO" if role != "OPERADOR" else ""}</b><div style="font-size:11px">{u["N"]} | {role}</div></div>', unsafe_allow_html=True)
-    
+    st.markdown(f'<div class="nav"><b style="color:#F97316; font-size:20px">ATLAS {"GESTÃO" if role != "OPERADOR" else ""}</b><div style="font-size:11px">{user["N"]} | {role}</div></div>', unsafe_allow_html=True)
     with st.sidebar: 
-        st.button("Sair do Sistema", on_click=logout, use_container_width=True)
+        st.button("Sair", on_click=logout, use_container_width=True)
         st.toggle("🌙 Modo Noturno", value=st.session_state.dark, on_change=toggle, key="nav_tgl")
 
     df_raw = get_data("DADOS-DIA")
     rk = df_raw.iloc[1:24, [0, 1]].dropna()
     rk.columns = ["Nome", "M_Str"]; rk['N'] = rk['M_Str'].apply(to_f)
 
-    # =================================================================
-    # ÁREA DO GESTOR (PROFISSIONAL & INTERATIVA)
-    # =================================================================
+    # VISÃO GESTOR
     if role in ["GESTOR", "GESTÃO"]:
         st.markdown('<div class="main-content">', unsafe_allow_html=True)
         st.header(f"📊 Painel de Gestão Atlas")
         
-        # KPIs Macro de Gestão
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Média Equipe", f"{rk['N'].mean():.1f}%".replace('.',','), delta=f"{rk['N'].mean()-80:.1f}% vs Meta")
+        c1.metric("Média Equipe", f"{rk['N'].mean():.1f}%".replace('.',','), delta=f"{rk['N'].mean()-80:.1f}%")
         c2.metric("Coroas (80%+)", f"{len(rk[rk['N']>=80])} 👑")
         c3.metric("Foco Crítico (<70%)", len(rk[rk['N']<70]))
         c4.metric("Operadores Ativos", len(rk))
         
-        t_equipe, t_mural, t_audit = st.tabs(["🎯 Visão da Equipe", "📢 Central de Avisos", "🔍 Auditoria por Operador"])
+        tab_view, tab_mural, tab_audit = st.tabs(["🎯 Radar da Equipe", "📢 Central de Avisos", "🔍 Auditoria por Operador"])
         
-        with t_equipe:
-            st.subheader("Performance Geral")
+        with tab_view:
             st.dataframe(rk.sort_values("N", ascending=False)[["Nome", "M_Str"]], use_container_width=True, hide_index=True)
             
-        with t_mural:
-            st.subheader("Comunicado para o Time")
-            st.session_state.mural = st.text_area("Aviso no Sininho:", value=st.session_state.mural)
-            if st.button("Disparar Mural"): st.success("Aviso atualizado!")
+        with tab_mural:
+            st.session_state.mural = st.text_area("Aviso aos Operadores:", value=st.session_state.mural)
+            if st.button("Disparar Mural"): st.success("Mural atualizado!")
             
-        with t_audit:
+        with tab_audit:
             st.subheader("Histórico Detalhado (A27:AG211)")
             op_sel = st.selectbox("Selecione o Operador:", rk["Nome"].unique())
             if op_sel:
+                # Fatiamento do intervalo solicitado
                 df_h = df_raw.iloc[26:211, 0:33].copy()
                 df_h.columns = ["Nome", "Métrica"] + [f"D{i:02d}" for i in range(1, 32)]
+                
+                # Mapeamento para exibição
                 df_h['Métrica'] = df_h['Métrica'].replace({"LIGAÇÃO": "INTERAÇÃO"})
+                
+                # Filtro pelo operador selecionado
                 audit_filt = df_h[df_h['Nome'].apply(norm).str.contains(norm(op_sel.split()[0]), na=False)]
+                
+                # APLICAÇÃO DA CORREÇÃO DE PORCENTAGEM (O segredo da visualização)
+                # Aplicamos a formatação em todas as colunas de data (D01 até D31)
+                for col in [f"D{i:02d}" for i in range(1, 32)]:
+                    audit_filt[col] = audit_filt[col].apply(format_audit_cell)
+                
                 st.dataframe(audit_filt, use_container_width=True, hide_index=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # =================================================================
-    # ÁREA DO OPERADOR (RESTAURADA)
-    # =================================================================
+    # VISÃO OPERADOR
     else:
         df_h = df_raw.iloc[26:211, 0:33].copy()
         m_map = {"INTERAÇÃO": "LIGAÇÃO"}
@@ -157,11 +160,10 @@ else:
                 vals = [v for v in row.iloc[0, 2:].tolist() if pd.notna(v) and str(v).strip() not in ["", "0", "0%"]]
                 curr = vals[-1] if vals else "0%"
                 prev = vals[-2] if len(vals) > 1 else curr
-                arr = '<span style="color:#10B981;font-size:14px">▲</span>' if to_f(curr) > to_f(prev) else ('<span style="color:#EF4444;font-size:14px">▼</span>' if to_f(curr) < to_f(prev) else "")
+                arr = '▲' if to_f(curr) > to_f(prev) else ('▼' if to_f(curr) < to_f(prev) else "")
                 m_data[m] = {"val": f"{to_f(curr):g}%".replace('.',','), "arr": arr, "col": get_style(m, curr)}
             else: m_data[m] = {"val": "0%", "arr": "", "col": "#F97316"}
 
-        # Renderização Operacional
         st.markdown('<div class="m-strip">', unsafe_allow_html=True)
         cols_m = st.columns([0.4, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 0.4])
         with cols_m[0]: 
