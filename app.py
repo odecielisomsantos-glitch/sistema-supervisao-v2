@@ -3,7 +3,7 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import unicodedata
 
-# 1. Configuração e Estado
+# 1. Configuração de Layout e Estado
 st.set_page_config(page_title="Atlas", page_icon="🌊", layout="wide", initial_sidebar_state="collapsed")
 
 if 'dark_mode' not in st.session_state: st.session_state.dark_mode = False
@@ -21,9 +21,8 @@ st.markdown(f"""
     header, footer, #MainMenu {{visibility: hidden;}}
     .stApp {{ background: {c['bg']}; color: {c['txt']}; font-family: 'Inter', sans-serif; }}
     .nav {{ position: fixed; top: 0; left: 0; width: 100%; height: 55px; background: {c['bg']}; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; z-index: 1001; border-bottom: 1px solid {c['brd']}; }}
-    .m-strip {{ margin-top: 55px; padding: 15px 40px; background: {c['bar']}; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid {c['brd']}; }}
+    .m-strip {{ margin-top: 55px; padding: 15px 40px; background: {c['bar']}; border-bottom: 1px solid {c['brd']}; }}
     
-    /* Fontes Aumentadas conforme solicitado */
     .m-box {{ text-align: center; flex: 1; border-right: 1px solid {c['brd']}; padding: 5px; }}
     .m-lab {{ font-size: 13px; opacity: 0.9; font-weight: 800; text-transform: uppercase; margin-bottom: 5px; }}
     .m-val {{ font-size: 24px; font-weight: 900; display: flex; align-items: center; justify-content: center; gap: 5px; }}
@@ -56,35 +55,40 @@ def format_br(v):
 def get_color(metric, val_str):
     v = to_f(val_str)
     m = norm(metric)
+    # Mantemos INTERACAO para o semáforo pois é o nome da UI
     if m in ["CSAT", "IR", "INTERACAO", "META"]:
-        if v >= 80: return "#10B981" # Verde
-        if v >= 70: return "#FACC15" # Amarelo
+        if v >= 80: return "#10B981" 
+        if v >= 70: return "#FACC15" 
     elif m == "TPC":
         if v >= 95: return "#10B981"
         if v >= 90: return "#FACC15"
     elif m == "PONTUALIDADE":
         if v >= 90: return "#10B981"
         if v >= 85: return "#FACC15"
-    return "#F97316" # Laranja padrão Atlas para valores baixos
+    return "#F97316" 
 
-# 5. Busca Comparativa (Atual vs Anterior)
+# 5. Busca com Mapeamento de Planilha (Interação -> Ligação)
 def fetch_metrics_with_trends(df_block, p_match):
-    metrics = ["CSAT", "TPC", "INTERACAO", "IR", "PONTUALIDADE", "META"]
+    # Rótulos da Interface (UI)
+    metrics_ui = ["CSAT", "TPC", "INTERAÇÃO", "IR", "PONTUALIDADE", "META"]
+    # Mapeamento: Interface -> Planilha
+    mapping = {"INTERAÇÃO": "LIGAÇÃO"} 
+    
     results = {}
     u_data = df_block[df_block.iloc[:, 0].apply(norm).str.contains(norm(p_match), na=False)]
     
-    for m in metrics:
-        row = u_data[u_data.iloc[:, 1].apply(norm) == m]
+    for m in metrics_ui:
+        # Busca pelo nome da planilha se houver mapeamento, caso contrário usa o nome da UI
+        sheet_term = mapping.get(m, m)
+        row = u_data[u_data.iloc[:, 1].apply(norm) == norm(sheet_term)]
+        
         if not row.empty:
-            # Pega todos os valores preenchidos da linha
             vals = row.iloc[0, 2:].values.tolist()
             valid_vals = [v for v in vals if pd.notna(v) and str(v).strip() not in ["", "0", "0%"]]
             
             if len(valid_vals) >= 1:
                 curr = valid_vals[-1]
                 prev = valid_vals[-2] if len(valid_vals) > 1 else curr
-                
-                # Define a seta baseada na comparação
                 diff = to_f(curr) - to_f(prev)
                 arrow = ""
                 if diff > 0: arrow = '<span style="color:#10B981; font-size:18px;">▲</span>'
@@ -97,7 +101,7 @@ def fetch_metrics_with_trends(df_block, p_match):
             results[m] = {"val": "0%", "arrow": "", "color": "#F97316"}
     return results
 
-# --- AUTH & DASHBOARD ---
+# --- AUTH ---
 if 'auth' not in st.session_state: st.session_state.auth = False
 
 if not st.session_state.auth:
@@ -105,7 +109,7 @@ if not st.session_state.auth:
     with center.form("login"):
         st.subheader("Atlas - Acesso")
         u_in, p_in = st.text_input("Usuário").lower().strip(), st.text_input("Senha", type="password")
-        if st.form_submit_button("ACESSAR"):
+        if st.form_submit_button("ACESSAR PORTAL"):
             df_u = get_data("Usuarios").iloc[1:]
             df_u.columns = ['U','P','N','F']
             m = df_u[(df_u['U'].astype(str) == u_in) & (df_u['P'].astype(str) == p_in)]
@@ -126,7 +130,6 @@ else:
         st.session_state.msg_mural = st.text_area("📢 Mural de Avisos", value=st.session_state.msg_mural)
         st.dataframe(df_raw.iloc[1:24, [0, 1]], use_container_width=True, hide_index=True)
     else:
-        # Ranking e Histórico
         rk = df_raw.iloc[1:24, [0, 1]].dropna()
         rk.columns = ["Nome", "M_Str"]; rk['N'] = rk['M_Str'].apply(to_f)
         rk = rk.sort_values(by='N', ascending=False).reset_index(drop=True)
@@ -134,13 +137,13 @@ else:
         df_h = df_raw.iloc[26:211, 0:33].copy()
         metrics_data = fetch_metrics_with_trends(df_h, p_nome)
 
-        # Barra de Métricas com Semáforo e Setas
+        # 5. Barra de Métricas (Mapeada: Sheet "Ligação" -> UI "Interação")
         st.markdown('<div class="m-strip">', unsafe_allow_html=True)
         cols = st.columns([0.4, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 0.4])
         with cols[0]: 
             with st.popover("🔔"): st.info(st.session_state.msg_mural)
         
-        m_list = ["CSAT", "TPC", "INTERACAO", "IR", "PONTUALIDADE", "META"]
+        m_list = ["CSAT", "TPC", "INTERAÇÃO", "IR", "PONTUALIDADE", "META"]
         for i, m_key in enumerate(m_list):
             m_info = metrics_data[m_key]
             with cols[i+1]:
@@ -168,7 +171,6 @@ else:
                 y = [to_f(v) for v in u_row.iloc[0, 2:].values]
                 st.line_chart(pd.DataFrame({"Dia": [f"{i:02d}" for i in range(1, 32)], "Meta": y}).set_index("Dia"), color="#F97316")
 
-        # Cards com Coroa
         st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
         c_cards = st.columns(8)
         for i, row in rk.iterrows():
