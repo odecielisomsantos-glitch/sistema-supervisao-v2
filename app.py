@@ -55,16 +55,12 @@ def to_f(v):
     except: return 0.0
 
 def format_audit_cell(v):
-    """Converte decimais estranhos (0.6667) para porcentagem legível (66,67%)"""
     if pd.isna(v) or str(v).strip() in ["", "0", "0%"]: return "0%"
     try:
         val = float(str(v).replace('%', '').replace(',', '.'))
-        # Se for um decimal menor que 1.05 (ex: 0.6667), multiplica por 100
         if val <= 1.05: val = val * 100
-        # Formata com vírgula e remove zeros desnecessários
         return f"{val:g}%".replace('.', ',')
-    except:
-        return str(v)
+    except: return str(v)
 
 def get_style(metric, val_str):
     v, m = to_f(val_str), norm(metric)
@@ -126,25 +122,44 @@ else:
             if st.button("Disparar Mural"): st.success("Mural atualizado!")
             
         with tab_audit:
-            st.subheader("Histórico Detalhado (A27:AG211)")
-            op_sel = st.selectbox("Selecione o Operador:", rk["Nome"].unique())
+            st.subheader("Auditoria Detalhada (A27:AG211)")
+            op_sel = st.selectbox("Selecione o Operador para Análise:", rk["Nome"].unique())
             if op_sel:
-                # Fatiamento do intervalo solicitado
                 df_h = df_raw.iloc[26:211, 0:33].copy()
-                df_h.columns = ["Nome", "Métrica"] + [f"D{i:02d}" for i in range(1, 32)]
-                
-                # Mapeamento para exibição
+                days_cols = [f"D{i:02d}" for i in range(1, 32)]
+                df_h.columns = ["Nome", "Métrica"] + days_cols
                 df_h['Métrica'] = df_h['Métrica'].replace({"LIGAÇÃO": "INTERAÇÃO"})
                 
-                # Filtro pelo operador selecionado
-                audit_filt = df_h[df_h['Nome'].apply(norm).str.contains(norm(op_sel.split()[0]), na=False)]
+                # Dados Brutos para Tabela
+                audit_filt = df_h[df_h['Nome'].apply(norm).str.contains(norm(op_sel.split()[0]), na=False)].copy()
                 
-                # APLICAÇÃO DA CORREÇÃO DE PORCENTAGEM (O segredo da visualização)
-                # Aplicamos a formatação em todas as colunas de data (D01 até D31)
-                for col in [f"D{i:02d}" for i in range(1, 32)]:
-                    audit_filt[col] = audit_filt[col].apply(format_audit_cell)
+                # Formatação visual da tabela
+                table_display = audit_filt.copy()
+                for col in days_cols:
+                    table_display[col] = table_display[col].apply(format_audit_cell)
                 
-                st.dataframe(audit_filt, use_container_width=True, hide_index=True)
+                st.dataframe(table_display, use_container_width=True, hide_index=True)
+                
+                # --- GRÁFICO DE ANALYTICS GESTÃO ---
+                st.markdown("---")
+                st.subheader(f"📈 Analytics de Evolução: {op_sel}")
+                
+                # Preparação dos dados para o gráfico multilinhas
+                chart_list = []
+                for _, row in audit_filt.iterrows():
+                    m_name = row['Métrica']
+                    y_vals = [to_f(v) for v in row[2:].values]
+                    chart_list.append(pd.Series(y_vals, name=m_name))
+                
+                if chart_list:
+                    df_chart = pd.concat(chart_list, axis=1)
+                    df_chart.index = [f"{i:02d}" for i in range(1, 32)]
+                    df_chart.index.name = "Dia"
+                    
+                    # Exibe gráfico profissional com todas as métricas
+                    st.line_chart(df_chart, height=400, use_container_width=True)
+                    st.caption("ℹ️ O gráfico exibe a variação diária de todas as métricas (0-100%).")
+                    
         st.markdown('</div>', unsafe_allow_html=True)
 
     # VISÃO OPERADOR
