@@ -3,122 +3,143 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import unicodedata
 
-# 1. Configurações de Elite
-st.set_page_config(page_title="Atlas Gestão", page_icon="👔", layout="wide", initial_sidebar_state="collapsed")
+# 1. Setup de Performance e Design
+st.set_page_config(page_title="Atlas Pro", page_icon="👔", layout="wide", initial_sidebar_state="collapsed")
 
-# Inicialização de Memória Persistente
-if 'msg_mural' not in st.session_state: st.session_state.msg_mural = "Foco total nas metas de hoje!"
-if 'dark_mode' not in st.session_state: st.session_state.dark_mode = True
+for key, val in {'dark': True, 'mural': "Foco total!"}.items():
+    if key not in st.session_state: st.session_state[key] = val
 
-def toggle_theme(): st.session_state.dark_mode = not st.session_state.dark_mode
 def logout(): st.session_state.clear(); st.rerun()
 
-# 2. Design System Otimizado (CSS Maestro)
-c = {"bg": "#0E1117" if st.session_state.dark_mode else "#FFF", "txt": "#F9FAFB" if st.session_state.dark_mode else "#111", "brd": "#30363D" if st.session_state.dark_mode else "#E5E7EB", "bar": "#1F2937" if st.session_state.dark_mode else "#F9FAFB"}
+# 2. CSS Maestro (Otimizado e Sem Erros)
+c = {"bg": "#0E1117" if st.session_state.dark else "#FFF", "tx": "#F9FAFB" if st.session_state.dark else "#111", "brd": "#30363D" if st.session_state.dark else "#E5E7EB", "bar": "#1F2937" if st.session_state.dark else "#F9FAFB"}
 
 st.markdown(f"""
     <style>
     header, footer, #MainMenu {{visibility: hidden;}}
-    .stApp {{ background: {c['bg']}; color: {c['txt']}; font-family: 'Inter', sans-serif; }}
+    .stApp {{ background: {c['bg']}; color: {c['tx']}; font-family: 'Inter', sans-serif; }}
     .nav {{ position: fixed; top: 0; left: 0; width: 100%; height: 55px; background: {c['bg']}; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; z-index: 1001; border-bottom: 1px solid {c['brd']}; }}
-    .main-content {{ margin-top: 70px; padding: 0 40px; }}
-    [data-testid="stMetricValue"] {{ font-size: 28px !important; font-weight: 800; color: #F97316; }}
-    .stTabs [data-baseweb="tab-list"] {{ gap: 24px; }}
-    .stTabs [data-baseweb="tab"] {{ height: 50px; font-weight: 700; }}
+    .m-strip {{ margin-top: 55px; padding: 12px 40px; background: {c['bar']}; border-bottom: 1px solid {c['brd']}; }}
+    .m-box {{ text-align: center; flex: 1; border-right: 1px solid {c['brd']}; padding: 5px; }}
+    .m-lab {{ font-size: 11px; opacity: 0.8; font-weight: 800; text-transform: uppercase; }}
+    .m-val {{ font-size: 22px; font-weight: 900; display: flex; align-items: center; justify-content: center; gap: 4px; }}
+    .card {{ position: relative; background: {c['bar']}; padding: 15px; border-radius: 12px; border: 1px solid {c['brd']}; text-align: center; height: 175px; }}
+    .crown {{ position: absolute; top: -15px; left: 35%; font-size: 22px; animation: float 3s infinite; }}
+    @keyframes float {{ 50% {{ transform: translateY(-6px); }} }}
+    .av {{ width: 45px; height: 45px; background: #22D3EE; color: #083344; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-weight: 800; }}
     </style>
 """, unsafe_allow_html=True)
 
-# 3. Motor de Inteligência de Dados
+# 3. Funções de Inteligência
 @st.cache_data(ttl=60)
-def get_data(aba):
-    return st.connection("gsheets", type=GSheetsConnection).read(worksheet=aba, ttl=0, header=None)
+def get_data(aba): return st.connection("gsheets", type=GSheetsConnection).read(worksheet=aba, ttl=0, header=None)
 
 def norm(t): return "".join(c for c in unicodedata.normalize('NFD', str(t)) if unicodedata.category(c) != 'Mn').upper().strip()
 
 def to_f(v):
     try:
-        val = float(str(v).replace('%', '').replace(',', '.'))
-        return val * 100 if val <= 1.0 else val
+        val = float(str(v).replace('%','').replace(',','.'))
+        return val * 100 if val <= 1.05 else val
     except: return 0.0
 
-# --- AUTH ---
+def get_style(metric, val_str):
+    v, m = to_f(val_str), norm(metric)
+    if m in ["CSAT", "IR", "INTERACAO", "META"]: return "#10B981" if v >= 80 else ("#FACC15" if v >= 70 else "#F97316")
+    if m == "TPC": return "#10B981" if v >= 95 else ("#FACC15" if v >= 90 else "#F97316")
+    if m == "PONTUALIDADE": return "#10B981" if v >= 90 else ("#FACC15" if v >= 85 else "#F97316")
+    return "#F97316"
+
+# --- LOGIN ---
 if 'auth' not in st.session_state: st.session_state.auth = False
 
 if not st.session_state.auth:
     _, cent, _ = st.columns([1, 1, 1])
     with cent.form("login"):
         u_in, p_in = st.text_input("Usuário").lower().strip(), st.text_input("Senha", type="password")
-        if st.form_submit_button("ACESSAR SISTEMA"):
+        if st.form_submit_button("ACESSAR"):
             df_u = get_data("Usuarios").iloc[1:]; df_u.columns = ['U','P','N','F']
             m = df_u[(df_u['U'].astype(str) == u_in) & (df_u['P'].astype(str) == p_in)]
-            if not m.empty:
-                st.session_state.auth, st.session_state.user = True, m.iloc[0].to_dict()
-                st.rerun()
+            if not m.empty: st.session_state.auth, st.session_state.user = True, m.iloc[0].to_dict(); st.rerun()
 else:
-    u, role = st.session_state.user, str(st.session_state.user['F']).upper().strip()
+    u = st.session_state.user
+    role, p_nome = str(u['F']).upper().strip(), u['N'].upper().split()[0]
     
-    st.markdown(f'<div class="nav"><b style="color:#F97316; font-size:22px">ATLAS GESTÃO</b><div>{u["N"]} | {role}</div></div>', unsafe_allow_html=True)
-    with st.sidebar: 
-        st.button("🚪 Encerrar Sessão", on_click=logout, use_container_width=True)
-        st.toggle("🌙 Modo Noturno", value=st.session_state.dark_mode, on_change=toggle_theme)
+    # Navbar Global
+    st.markdown(f'<div class="nav"><b style="color:#F97316; font-size:20px">ATLAS {"GESTÃO" if role != "OPERADOR" else ""}</b><div style="font-size:11px">{u["N"]} | {role}</div></div>', unsafe_allow_html=True)
+    with st.sidebar: st.button("🚪 Sair", on_click=logout, use_container_width=True)
 
     df_raw = get_data("DADOS-DIA")
+    rk = df_raw.iloc[1:24, [0, 1]].dropna()
+    rk.columns = ["Nome", "M_Str"]; rk['N'] = rk['M_Str'].apply(to_f)
 
-    # --- PORTAL DO GESTOR ---
+    # --- VISÃO GESTOR ---
     if role in ["GESTOR", "GESTÃO"]:
-        st.markdown('<div class="main-content">', unsafe_allow_html=True)
-        
-        # Processamento Macro
-        rk = df_raw.iloc[1:24, [0, 1]].dropna()
-        rk.columns = ["Nome", "Meta_Str"]; rk['N'] = rk['Meta_Str'].apply(to_f)
-        
-        # Observações Importantes (KPIs de impacto)
-        avg_team = rk['N'].mean()
-        top_performers = len(rk[rk['N'] >= 80])
-        
+        st.markdown('<div style="margin-top:70px; padding:0 40px">', unsafe_allow_html=True)
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Média Equipe", f"{avg_team:.1f}%".replace('.', ','), delta=f"{avg_team-80:.1f}% vs Meta")
-        c2.metric("Coroas Hoje", f"{top_performers} 👑")
-        c3.metric("Operadores", len(rk))
-        c4.metric("Status Ref.", "JANEIRO/2026")
-
-        st.divider()
-
-        tab_equipe, tab_mural, tab_auditoria = st.tabs(["📊 Visão Macro", "📢 Mural de Avisos", "🔍 Auditoria por Operador"])
-
-        with tab_equipe:
-            st.subheader("Performance Geral")
-            # Ranking interativo com cores
-            st.dataframe(rk[["Nome", "Meta_Str"]].sort_values("N", ascending=False), use_container_width=True, hide_index=True)
-
+        c1.metric("Média Equipe", f"{rk['N'].mean():.1f}%".replace('.',','), delta=f"{rk['N'].mean()-80:.1f}%")
+        c2.metric("Top Performers (80%+)", f"{len(rk[rk['N']>=80])} 👑")
+        c3.metric("Foco Crítico (<70%)", len(rk[rk['N']<70]))
+        c4.metric("Operadores Logados", len(rk))
+        
+        tab_view, tab_mural, tab_audit = st.tabs(["📊 Radar da Equipe", "📢 Mural", "🔍 Auditoria"])
+        with tab_view: st.dataframe(rk.sort_values("N", ascending=False), use_container_width=True, hide_index=True)
         with tab_mural:
-            st.subheader("Central de Comunicação")
-            aviso = st.text_area("Este aviso aparecerá no sininho de todos os operadores:", value=st.session_state.msg_mural)
-            if st.button("Publicar Imediatamente"):
-                st.session_state.msg_mural = aviso
-                st.success("Mural atualizado!")
-
-        with tab_auditoria:
-            st.subheader("Filtro de Auditoria Sênior")
-            op_sel = st.selectbox("Selecione o Operador para Auditoria:", rk["Nome"].unique())
-            if op_sel:
-                # Busca profunda no intervalo A27:AG211
-                df_h = df_raw.iloc[26:211, 0:33].copy()
-                df_h.columns = ["Nome", "Metrica"] + [f"Dia {i:02d}" for i in range(1, 32)]
-                
-                # Mapeamento dinâmico (Ligação -> Interação)
-                df_h['Metrica'] = df_h['Metrica'].replace({"LIGAÇÃO": "INTERAÇÃO"})
-                
-                # Filtro pelo primeiro nome (match robusto)
-                match_name = op_sel.upper().split()[0]
-                audit = df_h[df_h['Nome'].apply(norm).str.contains(match_name, na=False)]
-                
-                st.write(f"Histórico Detalhado: **{op_sel}**")
-                st.dataframe(audit, use_container_width=True, hide_index=True)
-
+            st.session_state.mural = st.text_area("Aviso aos Operadores:", value=st.session_state.mural)
+            if st.button("Disparar"): st.success("Enviado!")
+        with tab_audit:
+            op = st.selectbox("Operador:", rk["Nome"].unique())
+            df_h = df_raw.iloc[26:211, 0:33].copy()
+            df_h.columns = ["Nome", "Metrica"] + [f"D{i:02d}" for i in range(1, 32)]
+            df_h['Metrica'] = df_h['Metrica'].replace({"LIGAÇÃO": "INTERAÇÃO"})
+            st.dataframe(df_h[df_h['Nome'].apply(norm).str.contains(op.upper().split()[0], na=False)], use_container_width=True, hide_index=True)
         st.markdown('</div>', unsafe_allow_html=True)
-    
-    # --- REDIRECIONAMENTO OPERADOR (Segurança) ---
+
+    # --- VISÃO OPERADOR (Correção do Erro Arthur Oliveira) ---
     else:
-        st.markdown('<div class="main-content">Redirecionando para Dashboard Operacional...</div>', unsafe_allow_html=True)
-        # Aqui reinseriríamos o código do operador se estivesse tudo no mesmo arquivo
+        df_h = df_raw.iloc[26:211, 0:33].copy()
+        
+        # Lógica de Métricas
+        m_map = {"INTERAÇÃO": "LIGAÇÃO"}
+        m_data = {}
+        u_block = df_h[df_h.iloc[:, 0].apply(norm).str.contains(p_nome, na=False)]
+        
+        for m in ["CSAT", "TPC", "INTERAÇÃO", "IR", "PONTUALIDADE", "META"]:
+            row = u_block[u_block.iloc[:, 1].apply(norm) == norm(m_map.get(m, m))]
+            if not row.empty:
+                vals = [v for v in row.iloc[0, 2:].tolist() if pd.notna(v) and str(v).strip() not in ["", "0", "0%"]]
+                curr = vals[-1] if vals else "0%"
+                prev = vals[-2] if len(vals) > 1 else curr
+                arr = '<span style="color:#10B981;font-size:14px">▲</span>' if to_f(curr) > to_f(prev) else ('<span style="color:#EF4444;font-size:14px">▼</span>' if to_f(curr) < to_f(prev) else "")
+                m_data[m] = {"val": f"{to_f(curr):g}%".replace('.',','), "arr": arr, "col": get_style(m, curr)}
+            else: m_data[m] = {"val": "0%", "arr": "", "col": "#F97316"}
+
+        # Barra de Métricas Operacional
+        st.markdown('<div class="m-strip">', unsafe_allow_html=True)
+        cols = st.columns([0.4, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 0.4])
+        with cols[0]: 
+            with st.popover("🔔"): st.info(st.session_state.mural)
+        for i, m_key in enumerate(["CSAT", "TPC", "INTERAÇÃO", "IR", "PONTUALIDADE", "META"]):
+            d = m_data[m_key]
+            with cols[i+1]: st.markdown(f'<div class="m-box"><div class="m-lab">{m_key}</div><div class="m-val" style="color:{d["col"]}">{d["val"]} {d["arr"]}</div></div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # Ranking e Gráfico
+        st.markdown('<div style="padding:20px 40px"><div style="display:flex; gap:20px;">', unsafe_allow_html=True)
+        l, r = st.columns(2)
+        with l: 
+            st.markdown("### 🏆 Ranking")
+            st.dataframe(rk[["Nome", "M_Str"]].sort_values("N", ascending=False), use_container_width=True, hide_index=True, height=380)
+        with r:
+            st.markdown(f"### 📈 Evolução Meta - {p_nome.title()}")
+            u_meta = u_block[u_block.iloc[:, 1].apply(norm) == "META"]
+            if not u_meta.empty:
+                st.line_chart(pd.DataFrame({"Dia": [f"{i:02d}" for i in range(1, 32)], "Meta": [to_f(v) for v in u_meta.iloc[0, 2:].values]}).set_index("Dia"), color="#F97316")
+        
+        # Cards
+        st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
+        c_cards = st.columns(8)
+        for i, row in rk.sort_values("N", ascending=False).reset_index(drop=True).iterrows():
+            crw = '<div class="crown">👑</div>' if row['N'] >= 80 else ''
+            ini = "".join([n[0] for n in str(row['Nome']).split()[:2]]).upper()
+            with c_cards[i % 8]: st.markdown(f'<div class="card">{crw}<div class="av">{ini}</div><div style="font-size:10px;font-weight:700">{row["Nome"][:13]}</div><b style="color:{"#10B981" if row["N"] >= 80 else "#EF4444"}; font-size:18px">{row["M_Str"]}</b></div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
