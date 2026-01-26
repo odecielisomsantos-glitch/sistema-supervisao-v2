@@ -3,7 +3,7 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import unicodedata
 
-# 1. Setup de Performance
+# 1. Configuração de Performance
 st.set_page_config(page_title="Atlas", page_icon="🌊", layout="wide", initial_sidebar_state="collapsed")
 
 if 'dark_mode' not in st.session_state: st.session_state.dark_mode = False
@@ -15,7 +15,7 @@ def logout():
     for key in list(st.session_state.keys()): del st.session_state[key]
     st.rerun()
 
-# CSS Consolidado (Scannability & Clarity)
+# CSS Consolidado (Identidade Atlas)
 is_dark = st.session_state.dark_mode
 c = {"bg": "#0E1117" if is_dark else "#FFF", "txt": "#F9FAFB" if is_dark else "#111", "brd": "#30363D" if is_dark else "#E5E7EB", "bar": "#1F2937" if is_dark else "#F9FAFB"}
 
@@ -27,7 +27,7 @@ st.markdown(f"""
     .m-strip {{ margin-top: 55px; padding: 12px 40px; background: {c['bar']}; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid {c['brd']}; }}
     .m-box {{ text-align: center; flex: 1; border-right: 1px solid {c['brd']}; }}
     .m-lab {{ font-size: 9px; opacity: 0.7; font-weight: 800; text-transform: uppercase; }}
-    .m-val {{ font-size: 15px; font-weight: 800; color: #F97316; }}
+    .m-val {{ font-size: 16px; font-weight: 800; color: #F97316; }}
     .card {{ position: relative; background: {c['bar']}; padding: 18px; border-radius: 15px; border: 1px solid {c['brd']}; text-align: center; height: 180px; }}
     .crown {{ position: absolute; top: -18px; left: 35%; font-size: 24px; animation: float 3s infinite; }}
     @keyframes float {{ 50% {{ transform: translateY(-7px); }} }}
@@ -41,28 +41,35 @@ def get_data(aba):
 
 def norm(t): return "".join(c for c in unicodedata.normalize('NFD', str(t)) if unicodedata.category(c) != 'Mn').upper().strip()
 
-def clean_f(v):
-    if pd.isna(v) or str(v).strip() in ["", "0", "0%"]: return 0.0
-    val = str(v).replace('%','').replace(',','.').strip()
+# Formatação idêntica à planilha
+def format_display(v):
+    if pd.isna(v) or str(v).strip() in ["", "0", "0%"]: return "0%"
     try:
-        f = float(val)
-        return f if f <= 1.5 else f/100
+        # Se for float (ex: 0.9605), transforma em 96,05%
+        val = float(str(v).replace('%', '').replace(',', '.'))
+        if val <= 1.0: val = val * 100
+        return f"{val:g}%".replace('.', ',')
+    except: return str(v).replace('.', ',')
+
+def clean_numeric(v):
+    try:
+        val = float(str(v).replace('%', '').replace(',', '.'))
+        return val * 100 if val <= 1.5 else val
     except: return 0.0
 
-# --- Motor de Busca do Último Dado Real ---
 def fetch_latest(df_block, p_match):
     metrics = ["CSAT", "TPC", "INTERACAO", "IR", "PONTUALIDADE", "META"]
-    results = {m: "0.0%" for m in metrics}
+    results = {m: "0%" for m in metrics}
     u_data = df_block[df_block.iloc[:, 0].apply(norm).str.contains(norm(p_match), na=False)]
     
     for m in metrics:
         row = u_data[u_data.iloc[:, 1].apply(norm) == m]
         if not row.empty:
-            # Varredura Reversa: pega da coluna 32 (dia 31) para a 2 (dia 01)
+            # Busca reversa do último dado real
             row_vals = row.iloc[0, 2:].values.tolist()[::-1]
             for v in row_vals:
                 if pd.notna(v) and str(v).strip() not in ["", "0", "0%"]:
-                    results[m] = f"{v}%" if "%" not in str(v) else str(v)
+                    results[m] = format_display(v)
                     break
     return results
 
@@ -72,8 +79,9 @@ if 'auth' not in st.session_state: st.session_state.auth = False
 if not st.session_state.auth:
     _, center, _ = st.columns([1, 1.1, 1])
     with center.form("login"):
+        st.subheader("Atlas - Acesso")
         u_in, p_in = st.text_input("Usuário").lower().strip(), st.text_input("Senha", type="password")
-        if st.form_submit_button("ACESSAR SISTEMA"):
+        if st.form_submit_button("ACESSAR"):
             df_u = get_data("Usuarios").iloc[1:]
             df_u.columns = ['U','P','N','F']
             m = df_u[(df_u['U'].astype(str) == u_in) & (df_u['P'].astype(str) == p_in)]
@@ -81,12 +89,11 @@ if not st.session_state.auth:
                 st.session_state.auth, st.session_state.user = True, m.iloc[0].to_dict()
                 st.rerun()
 
-# --- PORTAL MASTER ---
+# --- PORTAL ---
 else:
     user = st.session_state.user
     role, p_nome = str(user['F']).upper().strip(), user['N'].upper().split()[0]
 
-    # Navbar Fixa
     st.markdown(f'<div class="nav"><b style="color:#F97316; font-size:22px">ATLAS</b><div style="font-size:12px; font-weight:600;">{user["N"]} | {role}</div></div>', unsafe_allow_html=True)
     with st.sidebar: st.button("🚪 ENCERRAR SESSÃO", on_click=logout, use_container_width=True)
 
@@ -97,16 +104,15 @@ else:
         st.session_state.msg_mural = st.text_area("📢 Mural de Avisos", value=st.session_state.msg_mural)
         st.dataframe(df_raw.iloc[1:24, [0, 1]], use_container_width=True, hide_index=True)
     else:
-        # Lógica de Ranking
+        # Ranking e Histórico (A27:AG211)
         rk = df_raw.iloc[1:24, [0, 1]].dropna()
-        rk.columns = ["Nome", "M_Str"]; rk['N'] = rk['M_Str'].apply(clean_f) * 100
+        rk.columns = ["Nome", "M_Str"]; rk['N'] = rk['M_Str'].apply(clean_numeric)
         rk = rk.sort_values(by='N', ascending=False).reset_index(drop=True)
         
-        # Lógica de Métricas Atuais (A27:AG211)
         df_h = df_raw.iloc[26:211, 0:33].copy()
         current = fetch_latest(df_h, p_nome)
 
-        # Barra de Métricas (DADOS DO OPERADOR)
+        # Barra de Métricas (Formato idêntico à planilha)
         st.markdown('<div class="m-strip">', unsafe_allow_html=True)
         cols = st.columns([0.4, 1, 1, 1, 1, 1, 1, 0.4])
         with cols[0]: 
@@ -120,7 +126,6 @@ else:
         with cols[7]: st.toggle("🌙", value=st.session_state.dark_mode, on_change=toggle_theme)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Conteúdo Principal
         st.markdown('<div style="padding: 20px 40px;">', unsafe_allow_html=True)
         l, r = st.columns(2)
         with l:
@@ -130,15 +135,15 @@ else:
             st.markdown(f"### 📈 Evolução Meta - {p_nome.title()}")
             u_row = df_h[(df_h.iloc[:, 0].apply(norm).str.contains(norm(p_nome))) & (df_h.iloc[:, 1].apply(norm) == "META")]
             if not u_row.empty:
-                y = [clean_f(v) * 100 for v in u_row.iloc[0, 2:].values]
+                y = [clean_numeric(v) for v in u_row.iloc[0, 2:].values]
                 st.line_chart(pd.DataFrame({"Dia": [f"{i:02d}" for i in range(1, 32)], "Meta": y}).set_index("Dia"), color="#F97316")
 
-        # Cards com Coroa
+        # Cards Individuais com Coroa
         st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
         c_cards = st.columns(8)
         for i, row in rk.iterrows():
             crw = '<div class="crown">👑</div>' if row['N'] >= 80 else ''
             ini = "".join([n[0] for n in str(row['Nome']).split()[:2]]).upper()
             with c_cards[i % 8]:
-                st.markdown(f'<div class="card">{crw}<div class="av">{ini}</div><div style="font-size:10px;font-weight:700;">{row["Nome"][:12]}</div><b style="color:{"#10B981" if row["N"] >= 80 else "#EF4444"}">{row["M_Str"]}</b></div>', unsafe_allow_html=True)
+                st.markdown(f'''<div class="card">{crw}<div class="av">{ini}</div><div style="font-size:10px;font-weight:700;">{row["Nome"][:12]}</div><b style="color:{"#10B981" if row["N"] >= 80 else "#EF4444"}">{row["M_Str"]}</b></div>''', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
