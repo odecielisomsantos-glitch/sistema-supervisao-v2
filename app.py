@@ -28,7 +28,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. MOTOR DE DADOS E NORMALIZAÇÃO
+# 3. MOTOR DE DADOS
 @st.cache_data(ttl=60)
 def get_data(aba):
     try: return st.connection("gsheets", type=GSheetsConnection).read(worksheet=aba, ttl=0, header=None)
@@ -81,7 +81,7 @@ else:
         tab_v, tab_m, tab_a = st.tabs(["🎯 Radar da Equipe", "📢 Mural", "🔍 Auditoria"])
         
         with tab_v:
-            # 1. Ranking Geral (Metade do site)
+            # 1. Ranking Geral (50% do site)
             col_l, _ = st.columns([1, 1])
             with col_l:
                 st.subheader("Ranking Geral")
@@ -89,13 +89,12 @@ else:
             
             st.markdown("---")
             
-            # 2. Matriz de Performance Individual
+            # 2. Matriz de Performance Individual com Sparklines Onduladas
             st.subheader("📈 Matriz de Performance Individual")
             
             df_h = df_raw.iloc[26:211, 0:33].copy()
             days_cols = [f"D{i:02d}" for i in range(1, 32)]
             df_h.columns = ["Nome", "Métrica"] + days_cols
-            # Ajuste de Mapeamento: Busca 'LIGAÇÃO' para exibir 'INTERAÇÃO'
             df_h['Métrica'] = df_h['Métrica'].replace({"LIGAÇÃO": "INTERAÇÃO"})
 
             performance_list = []
@@ -107,30 +106,39 @@ else:
                     met_row = op_data[op_data['Métrica'].apply(norm) == norm(met)]
                     if not met_row.empty:
                         vals = [to_f(v) for v in met_row.iloc[0, 2:].values]
+                        history = [v for v in vals if v > 0]
                         
-                        # Sparkline com "bico" direcionado (Remove zeros futuros)
-                        if met == "META": 
-                            history = [v for v in vals if v > 0]
+                        if met == "META":
+                            # Sparkline Ondulada (Mantendo o histórico real)
                             row_perf["Sparkline (Meta)"] = history if history else [0]
-                        
-                        current_val = [v for v in vals if v > 0]
-                        row_perf[met.title()] = f"{current_val[-1]:g}%".replace('.',',') if current_val else "0%"
+                            
+                            # Lógica das Setas de Tendência (Meta Atual)
+                            if len(history) >= 2:
+                                curr, prev = history[-1], history[-2]
+                                arrow = "▲" if curr > prev else ("▼" if curr < prev else "")
+                                row_perf["Meta Atual"] = f"{curr:g}% {arrow}".replace('.',',')
+                            else:
+                                row_perf["Meta Atual"] = f"{history[-1]:g}%".replace('.',',') if history else "0%"
+                        else:
+                            val_disp = f"{history[-1]:g}%".replace('.',',') if history else "0%"
+                            row_perf[met.title()] = val_disp
                     else:
-                        if met == "META": row_perf["Sparkline (Meta)"] = [0]
+                        if met == "META": 
+                            row_perf["Sparkline (Meta)"] = [0]
+                            row_perf["Meta Atual"] = "0%"
                         row_perf[met.title()] = "0%"
                 
                 performance_list.append(row_perf)
 
             df_perf = pd.DataFrame(performance_list)
             
-            # Interface Pro
             st.dataframe(
                 df_perf,
                 column_config={
                     "Operador": st.column_config.TextColumn("Nome do Operador", width="medium"),
                     "Sparkline (Meta)": st.column_config.LineChartColumn("Tendência Meta", y_min=0, y_max=100),
-                    "Meta": st.column_config.TextColumn("Meta Atual"),
-                    "Interação": st.column_config.TextColumn("Interação (Ligação)") # Feedback visual do mapeamento
+                    "Meta Atual": st.column_config.TextColumn("Meta (Tendência)"),
+                    "Interação": st.column_config.TextColumn("Interação (Ligação)")
                 },
                 hide_index=True,
                 use_container_width=True
@@ -149,9 +157,9 @@ else:
                 for col in days_cols: t_disp[col] = t_disp[col].apply(lambda v: f"{to_f(v):g}%".replace('.', ','))
                 st.dataframe(t_disp, use_container_width=True, hide_index=True)
                 
-                # Gráfico com Porcentagens Fixas
+                # Gráfico com Porcentagens Fixas e Eixo Diário 1-31
                 st.markdown("---")
-                sel_m = st.multiselect("Métricas:", audit['Métrica'].unique().tolist(), default=audit['Métrica'].unique().tolist())
+                sel_m = st.multiselect("Visualizar métricas:", audit['Métrica'].unique().tolist(), default=audit['Métrica'].unique().tolist())
                 fig = go.Figure()
                 for m_name in sel_m:
                     row = audit[audit['Métrica'] == m_name].iloc[0]
@@ -162,9 +170,9 @@ else:
                         fig.add_trace(go.Scatter(x=xr[mask], y=yr[mask], name=m_name, mode='lines+markers+text', 
                                                  text=[f"{v:g}%".replace('.', ',') for v in yr[mask]],
                                                  textposition="top center", textfont=dict(size=9), hovertemplate='Dia %{x}: %{y:.2f}%'))
-                fig.update_layout(template="plotly_white", yaxis_range=[-5, 115], xaxis=dict(tickmode='linear', tick0=1, dtick=1, range=[0.5, 31.5]), margin=dict(l=0, r=0, t=30, b=0))
+                fig.update_layout(template="plotly_white", yaxis_range=[-5, 115], xaxis=dict(tickmode='linear', tick0=1, dtick=1, range=[0.5, 31.5]), margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                 st.plotly_chart(fig, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     else:
-        st.markdown('<div class="main-content">Módulo Operador Preservado</div>', unsafe_allow_html=True)
+        st.markdown('<div class="main-content">Módulo Operador Blindado</div>', unsafe_allow_html=True)
