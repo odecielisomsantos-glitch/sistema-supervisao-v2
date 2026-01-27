@@ -5,7 +5,7 @@ import unicodedata
 import plotly.graph_objects as go
 import numpy as np
 
-# 1. Configuração de Elite
+# 1. SETUP DE ELITE E ESTADO DO TEMA
 st.set_page_config(page_title="Atlas Gestão", page_icon="👔", layout="wide", initial_sidebar_state="collapsed")
 
 if 'dark' not in st.session_state: st.session_state.dark = True
@@ -14,7 +14,7 @@ if 'auth' not in st.session_state: st.session_state.auth = False
 
 def logout(): st.session_state.clear(); st.rerun()
 
-# 2. Design System de Alto Contraste
+# 2. DESIGN SYSTEM DE ALTO CONTRASTE (Cura das Letras Apagadas)
 is_dark = st.session_state.dark
 c = {
     "bg": "#0E1117" if is_dark else "#F0F2F6", 
@@ -29,20 +29,19 @@ st.markdown(f"""
     header, footer, #MainMenu {{visibility: hidden;}}
     .stApp {{ background-color: {c['bg']}; color: {c['tx']}; font-family: 'Inter', sans-serif; transition: 0.3s; }}
     .nav {{ position: fixed; top: 0; left: 0; width: 100%; height: 55px; background: {c['bg']}; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; z-index: 1001; border-bottom: 1px solid {c['brd']}; }}
-    .m-strip {{ margin-top: 55px; padding: 12px 40px; background: {c['card']}; border-bottom: 1px solid {c['brd']}; }}
+    .m-strip {{ margin-top: 55px; padding: 12px 40px; background: {c['card']}; border-bottom: 1px solid {c['brd']}; display: flex; align-items: center; justify-content: space-between; }}
     .m-box {{ text-align: center; flex: 1; border-right: 1px solid {c['brd']}; padding: 5px; }}
     .m-lab {{ font-size: 11px; color: {c['tx_sec']}; font-weight: 800; text-transform: uppercase; }}
     .m-val {{ font-size: 22px; font-weight: 900; color: #F97316; }}
     .card {{ position: relative; background: {c['card']}; padding: 15px; border-radius: 12px; border: 1px solid {c['brd']}; text-align: center; height: 175px; color: {c['tx']}; }}
     .av {{ width: 45px; height: 45px; background: #22D3EE; color: #083344; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-weight: 800; }}
     .main-content {{ margin-top: 70px; padding: 0 40px; }}
-    /* Garante visibilidade das fontes em todos os estados */
     .stMarkdown, p, h1, h2, h3, h4, span, label, li {{ color: {c['tx']} !important; }}
     [data-testid="stMetricValue"] {{ color: #F97316 !important; font-weight: 900 !important; }}
     </style>
 """, unsafe_allow_html=True)
 
-# 3. Motor de Dados
+# 3. MOTOR DE DADOS
 @st.cache_data(ttl=60)
 def get_data(aba):
     try: return st.connection("gsheets", type=GSheetsConnection).read(worksheet=aba, ttl=0, header=None)
@@ -62,13 +61,6 @@ def format_cell(v):
     f = to_f(v)
     return f"{f:g}%".replace('.', ',')
 
-def get_style(metric, val_str):
-    v, m = to_f(val_str), norm(metric)
-    if m in ["CSAT", "IR", "INTERACAO", "META"]: return "#10B981" if v >= 80 else ("#FACC15" if v >= 70 else "#F97316")
-    if m == "TPC": return "#10B981" if v >= 95 else ("#FACC15" if v >= 90 else "#F97316")
-    if m == "PONTUALIDADE": return "#10B981" if v >= 90 else ("#FACC15" if v >= 85 else "#F97316")
-    return "#F97316"
-
 # --- TELA DE LOGIN ---
 if not st.session_state.auth:
     _, cent, _ = st.columns([1, 1.2, 1])
@@ -82,8 +74,7 @@ if not st.session_state.auth:
                 df_u = get_data("Usuarios").iloc[1:]; df_u.columns = ['U','P','N','F']
                 match = df_u[(df_u['U'].astype(str) == u_in) & (df_u['P'].astype(str) == p_in)]
                 if not match.empty:
-                    st.session_state.auth, st.session_state.user = True, match.iloc[0].to_dict()
-                    st.rerun()
+                    st.session_state.auth, st.session_state.user = True, match.iloc[0].to_dict(); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
 # --- PORTAL ---
@@ -92,7 +83,6 @@ else:
     p_nome = u['N'].upper().split()[0]
     
     st.markdown(f'<div class="nav"><b style="color:#F97316; font-size:20px">ATLAS {"GESTÃO" if role != "OPERADOR" else ""}</b><div style="font-size:11px">{u["N"]} | {role}</div></div>', unsafe_allow_html=True)
-    
     with st.sidebar: 
         st.button("🚪 Sair", on_click=logout, use_container_width=True)
         st.toggle("🌙 Modo Noturno", value=st.session_state.dark, key="theme_tgl", on_change=lambda: st.session_state.update(dark=not st.session_state.dark))
@@ -101,7 +91,6 @@ else:
     rk = df_raw.iloc[1:24, [0, 1]].dropna()
     rk.columns = ["Nome", "M_Str"]; rk['N'] = rk['M_Str'].apply(to_f)
 
-    # VISÃO GESTOR
     if role in ["GESTOR", "GESTÃO"]:
         st.markdown('<div class="main-content">', unsafe_allow_html=True)
         st.header(f"📊 Painel de Gestão Atlas")
@@ -109,15 +98,15 @@ else:
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Média Equipe", f"{rk['N'].mean():.1f}%".replace('.',','))
         c2.metric("Coroas (80%+)", f"{len(rk[rk['N']>=80])} 👑")
-        c3.metric("Foco Crítico", len(rk[rk['N']<70]))
-        c4.metric("Ativos", len(rk))
+        c3.metric("Foco Crítico (<70%)", len(rk[rk['N']<70]))
+        c4.metric("Operadores Ativos", len(rk))
         
-        tab_v, tab_m, tab_a = st.tabs(["🎯 Radar", "📢 Mural", "🔍 Auditoria"])
+        tab_v, tab_m, tab_a = st.tabs(["🎯 Radar da Equipe", "📢 Mural de Avisos", "🔍 Auditoria por Operador"])
         
         with tab_v: st.dataframe(rk.sort_values("N", ascending=False)[["Nome", "M_Str"]], use_container_width=True, hide_index=True)
         with tab_m:
             st.session_state.mural = st.text_area("Aviso no Sininho:", value=st.session_state.mural)
-            if st.button("Disparar"): st.success("Atualizado!")
+            if st.button("Disparar Mural"): st.success("Atualizado!")
             
         with tab_a:
             st.subheader("Auditoria por Operador")
@@ -127,65 +116,54 @@ else:
                 days = [f"D{i:02d}" for i in range(1, 32)]
                 df_h.columns = ["Nome", "Métrica"] + days
                 df_h['Métrica'] = df_h['Métrica'].replace({"LIGAÇÃO": "INTERAÇÃO"})
-                
                 audit_filt = df_h[df_h['Nome'].apply(norm).str.contains(norm(op_sel.split()[0]), na=False)].copy()
+                
                 table_disp = audit_filt.copy()
                 for col in days: table_disp[col] = table_disp[col].apply(format_cell)
                 st.dataframe(table_disp, use_container_width=True, hide_index=True)
                 
-                # Analytics Clean com TENDÊNCIA GERAL ÚNICA
+                # --- ANALYTICS CLEAN COM UMA ÚNICA LINHA DE TENDÊNCIA ---
                 st.markdown("---")
                 st.subheader(f"📈 Evolução: {op_sel}")
                 cs, ct = st.columns([3, 1])
                 with cs: sel_m = st.multiselect("Métricas:", audit_filt['Métrica'].unique().tolist(), default=audit_filt['Métrica'].unique().tolist())
-                with ct: st.write(""); show_t = st.toggle("📊 Tendência Geral", value=False)
+                with ct: st.write(""); show_t = st.toggle("📊 Exibir Tendência Geral", value=False)
                 
                 fig = go.Figure()
-                trend_x, trend_y = [], [] # Coletores para a tendência geral
+                tx, ty = [], [] # Para o cálculo da tendência única
 
                 for m_name in sel_m:
                     row = audit_filt[audit_filt['Métrica'] == m_name].iloc[0]
-                    xr = np.array([int(d.replace("D","")) for d in days])
-                    yr = np.array([to_f(row[d]) for d in days])
-                    mask = yr > 0 
+                    xr, yr = np.array([int(d.replace("D","")) for d in days]), np.array([to_f(row[d]) for d in days])
+                    mask = yr > 0
                     if any(mask):
                         fig.add_trace(go.Scatter(x=xr[mask], y=yr[mask], name=m_name, mode='lines+markers', hovertemplate='%{y:.2f}%<extra></extra>'))
-                        if show_t: # Coleta dados para a tendência geral se ativado
-                             trend_x.extend(xr[mask])
-                             trend_y.extend(yr[mask])
+                        if show_t: tx.extend(xr[mask]); ty.extend(yr[mask])
                 
-                # Adiciona UMA ÚNICA linha de tendência geral se houver dados suficientes
-                if show_t and len(trend_x) > 1:
-                    trend_x = np.array(trend_x)
-                    trend_y = np.array(trend_y)
-                    # Ordena para garantir a linha reta
-                    sort_idx = np.argsort(trend_x)
-                    trend_x_sorted = trend_x[sort_idx]
-                    trend_y_sorted = trend_y[sort_idx]
-                    
-                    z = np.polyfit(trend_x_sorted, trend_y_sorted, 1)
-                    p = np.poly1d(z)
-                    # Linha branca/preta grossa e tracejada, estilo Excel
-                    trend_color = "white" if is_dark else "black"
-                    fig.add_trace(go.Scatter(x=trend_x_sorted, y=p(trend_x_sorted), name="Tendência Geral", mode='lines', line=dict(dash='dash', width=3, color=trend_color), opacity=0.8))
+                if show_t and len(tx) > 1:
+                    tx, ty = np.array(tx), np.array(ty)
+                    sort_idx = np.argsort(tx)
+                    tx_s, ty_s = tx[sort_idx], ty[sort_idx]
+                    z = np.polyfit(tx_s, ty_s, 1); p = np.poly1d(z)
+                    # UMA ÚNICA LINHA VERMELHA TRACEJADA (Estilo Excel)
+                    fig.add_trace(go.Scatter(x=tx_s, y=p(tx_s), name="Tendência Geral", mode='lines', line=dict(dash='dash', width=3, color='#EF4444'), opacity=0.9))
 
                 fig.update_layout(template="plotly_dark" if is_dark else "plotly_white", yaxis_range=[0, 105], margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                 st.plotly_chart(fig, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # VISÃO OPERADOR (ESTÁVEL)
     else:
+        # VISÃO OPERADOR (CONGELADA)
         df_h = df_raw.iloc[26:211, 0:33].copy()
         m_map, m_data = {"INTERAÇÃO": "LIGAÇÃO"}, {}
         u_block = df_h[df_h.iloc[:, 0].apply(norm).str.contains(p_nome, na=False)]
-        
         for m in ["CSAT", "TPC", "INTERAÇÃO", "IR", "PONTUALIDADE", "META"]:
             row = u_block[u_block.iloc[:, 1].apply(norm) == norm(m_map.get(m, m))]
             if not row.empty:
-                vals = [v for v in row.iloc[0, 2:].tolist() if pd.notna(v) and str(v).strip() not in ["", "0", "0%"]]
-                curr = vals[-1] if vals else "0%"; prev = vals[-2] if len(vals) > 1 else curr
+                v_list = [v for v in row.iloc[0, 2:].tolist() if pd.notna(v) and str(v).strip() not in ["", "0", "0%"]]
+                curr = v_list[-1] if v_list else "0%"; prev = v_list[-2] if len(v_list) > 1 else curr
                 arr = '▲' if to_f(curr) > to_f(prev) else ('▼' if to_f(curr) < to_f(prev) else "")
-                m_data[m] = {"val": format_cell(curr), "arr": arr, "col": get_style(m, curr)}
+                m_data[m] = {"val": format_cell(curr), "arr": arr, "col": "#F97316"}
             else: m_data[m] = {"val": "0%", "arr": "", "col": "#F97316"}
 
         st.markdown('<div class="m-strip">', unsafe_allow_html=True)
@@ -194,9 +172,10 @@ else:
             with st.popover("🔔"): st.info(st.session_state.mural)
         for i, mk in enumerate(["CSAT", "TPC", "INTERAÇÃO", "IR", "PONTUALIDADE", "META"]):
             d = m_data[mk]
-            with cols_m[i+1]: st.markdown(f'<div class="m-box"><div class="m-lab">{mk}</div><div class="m-val" style="color:{d["col"]}">{d["val"]} {d["arr"]}</div></div>', unsafe_allow_html=True)
+            with cols_m[i+1]: st.markdown(f'<div class="m-box"><div class="m-lab">{mk}</div><div class="m-val">{d["val"]} {d["arr"]}</div></div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
-
+        
+        # Ranking e Gráfico
         st.markdown('<div style="padding:20px 40px">', unsafe_allow_html=True)
         cl, cr = st.columns(2)
         with cl: st.markdown("### 🏆 Ranking"); st.dataframe(rk.sort_values("N", ascending=False)[["Nome", "M_Str"]], use_container_width=True, hide_index=True, height=380)
@@ -205,10 +184,11 @@ else:
             u_meta = u_block[u_block.iloc[:, 1].apply(norm) == "META"]
             if not u_meta.empty: st.line_chart(pd.DataFrame({"Dia": [f"{i:02d}" for i in range(1, 32)], "Meta": [to_f(v) for v in u_meta.iloc[0, 2:].values]}).set_index("Dia"), color="#F97316")
         
+        # Cards
         st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
         cc = st.columns(8); rk_cards = rk.sort_values("N", ascending=False).reset_index(drop=True)
         for i, row in rk_cards.iterrows():
-            crown = '👑' if row['N'] >= 80 else ''
+            crw = '👑' if row['N'] >= 80 else ''
             ini = "".join([n[0] for n in str(row['Nome']).split()[:2]]).upper()
-            with cc[i % 8]: st.markdown(f'<div class="card"><div style="font-size:20px; position:absolute; top:-10px; left:40%">{crown}</div><div class="av">{ini}</div><div style="font-size:10px;font-weight:700">{row["Nome"][:13]}</div><b style="color:{"#10B981" if row["N"] >= 80 else "#EF4444"}; font-size:18px">{row["M_Str"]}</b></div>', unsafe_allow_html=True)
+            with cc[i % 8]: st.markdown(f'<div class="card"><div style="font-size:20px; position:absolute; top:-10px; left:40%">{crw}</div><div class="av">{ini}</div><div style="font-size:10px;font-weight:700">{row["Nome"][:13]}</div><b style="color:#EF4444; font-size:18px">{row["M_Str"]}</b></div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
