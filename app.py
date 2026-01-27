@@ -13,7 +13,7 @@ if 'auth' not in st.session_state: st.session_state.auth = False
 
 def logout(): st.session_state.clear(); st.rerun()
 
-# 2. DESIGN SYSTEM - ALTA NITIDEZ
+# 2. DESIGN SYSTEM - ALTA NITIDEZ (Fundo Branco / Texto Preto)
 st.markdown("""
     <style>
     header, footer, #MainMenu {visibility: hidden;}
@@ -89,47 +89,48 @@ else:
             
             st.markdown("---")
             
-            # 2. NOVO: Matriz de Sparklines (Todos os Operadores)
+            # 2. Matriz de Performance Individual
             st.subheader("📈 Matriz de Performance Individual")
             
             df_h = df_raw.iloc[26:211, 0:33].copy()
             days_cols = [f"D{i:02d}" for i in range(1, 32)]
             df_h.columns = ["Nome", "Métrica"] + days_cols
+            # Ajuste de Mapeamento: Busca 'LIGAÇÃO' para exibir 'INTERAÇÃO'
             df_h['Métrica'] = df_h['Métrica'].replace({"LIGAÇÃO": "INTERAÇÃO"})
 
             performance_list = []
-            # Itera por todos os operadores do ranking
             for op_nome in rk['Nome'].unique():
                 op_data = df_h[df_h['Nome'].apply(norm).str.contains(norm(op_nome.split()[0]), na=False)]
-                
                 row_perf = {"Operador": op_nome}
                 
-                # Coleta Métricas Atuais e Histórico de Meta
                 for met in ["META", "CSAT", "TPC", "INTERAÇÃO", "IR", "PONTUALIDADE"]:
                     met_row = op_data[op_data['Métrica'].apply(norm) == norm(met)]
                     if not met_row.empty:
                         vals = [to_f(v) for v in met_row.iloc[0, 2:].values]
-                        # Sparkline para Meta
-                        if met == "META": row_perf["Sparkline (Meta)"] = vals
                         
-                        # Valor atual (último preenchido)
+                        # Sparkline com "bico" direcionado (Remove zeros futuros)
+                        if met == "META": 
+                            history = [v for v in vals if v > 0]
+                            row_perf["Sparkline (Meta)"] = history if history else [0]
+                        
                         current_val = [v for v in vals if v > 0]
                         row_perf[met.title()] = f"{current_val[-1]:g}%".replace('.',',') if current_val else "0%"
                     else:
-                        if met == "META": row_perf["Sparkline (Meta)"] = [0]*31
+                        if met == "META": row_perf["Sparkline (Meta)"] = [0]
                         row_perf[met.title()] = "0%"
                 
                 performance_list.append(row_perf)
 
             df_perf = pd.DataFrame(performance_list)
             
-            # Configuração Visual da Tabela (Estilo image_92906c.png)
+            # Interface Pro
             st.dataframe(
                 df_perf,
                 column_config={
                     "Operador": st.column_config.TextColumn("Nome do Operador", width="medium"),
                     "Sparkline (Meta)": st.column_config.LineChartColumn("Tendência Meta", y_min=0, y_max=100),
-                    "Meta": st.column_config.TextColumn("Meta Atual", help="Última métrica de meta registrada"),
+                    "Meta": st.column_config.TextColumn("Meta Atual"),
+                    "Interação": st.column_config.TextColumn("Interação (Ligação)") # Feedback visual do mapeamento
                 },
                 hide_index=True,
                 use_container_width=True
@@ -137,18 +138,18 @@ else:
 
         with tab_m:
             st.session_state.mural = st.text_area("Aviso:", value=st.session_state.mural)
-            if st.button("Disparar"): st.success("Feito!")
+            if st.button("Disparar Mural"): st.success("Atualizado!")
             
         with tab_a:
             st.subheader("Auditoria por Operador")
-            op_sel = st.selectbox("Operador:", rk["Nome"].unique())
+            op_sel = st.selectbox("Selecione o Operador:", rk["Nome"].unique())
             if op_sel:
                 audit = df_h[df_h['Nome'].apply(norm).str.contains(norm(op_sel.split()[0]), na=False)].copy()
                 t_disp = audit.copy()
                 for col in days_cols: t_disp[col] = t_disp[col].apply(lambda v: f"{to_f(v):g}%".replace('.', ','))
                 st.dataframe(t_disp, use_container_width=True, hide_index=True)
                 
-                # Gráfico Profissional (Diário 1-31)
+                # Gráfico com Porcentagens Fixas
                 st.markdown("---")
                 sel_m = st.multiselect("Métricas:", audit['Métrica'].unique().tolist(), default=audit['Métrica'].unique().tolist())
                 fig = go.Figure()
@@ -156,12 +157,14 @@ else:
                     row = audit[audit['Métrica'] == m_name].iloc[0]
                     xr = np.array([int(d.replace("D","")) for d in days_cols])
                     yr = np.array([to_f(row[d]) for d in days_cols])
-                    fig.add_trace(go.Scatter(x=xr, y=yr, name=m_name, mode='lines+markers+text', 
-                                             text=[f"{v:g}%".replace('.', ',') if v > 0 else "" for v in yr],
-                                             textposition="top center", textfont=dict(size=9), hovertemplate='Dia %{x}: %{y:.2f}%'))
+                    mask = yr > 0
+                    if any(mask):
+                        fig.add_trace(go.Scatter(x=xr[mask], y=yr[mask], name=m_name, mode='lines+markers+text', 
+                                                 text=[f"{v:g}%".replace('.', ',') for v in yr[mask]],
+                                                 textposition="top center", textfont=dict(size=9), hovertemplate='Dia %{x}: %{y:.2f}%'))
                 fig.update_layout(template="plotly_white", yaxis_range=[-5, 115], xaxis=dict(tickmode='linear', tick0=1, dtick=1, range=[0.5, 31.5]), margin=dict(l=0, r=0, t=30, b=0))
                 st.plotly_chart(fig, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     else:
-        st.markdown('<div class="main-content">Acesso Operacional Ativo</div>', unsafe_allow_html=True)
+        st.markdown('<div class="main-content">Módulo Operador Preservado</div>', unsafe_allow_html=True)
