@@ -58,8 +58,6 @@ if not st.session_state.auth:
                 if not match.empty:
                     st.session_state.auth, st.session_state.user = True, match.iloc[0].to_dict(); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
-
-# --- DASHBOARDS ---
 else:
     u = st.session_state.user
     role, p_nome = str(u['F']).upper().strip(), u['N'].upper().split()[0]
@@ -73,7 +71,6 @@ else:
     if role in ["GESTOR", "GESTÃO"]:
         st.markdown('<div class="main-content">', unsafe_allow_html=True)
         st.header("📊 Painel de Gestão Atlas")
-        
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Média Equipe", f"{rk['N'].mean():.1f}%".replace('.',','))
         c2.metric("Coroas (80%+)", f"{len(rk[rk['N']>=80])} 👑")
@@ -82,6 +79,7 @@ else:
         tab_v, tab_m, tab_a = st.tabs(["🎯 Radar da Equipe", "📢 Mural", "🔍 Auditoria"])
         
         with tab_v:
+            # 1. Ranking Geral (50% do site)
             col_l, _ = st.columns([1, 1])
             with col_l:
                 st.subheader("Ranking Geral")
@@ -89,48 +87,49 @@ else:
             
             st.markdown("---")
             
-            # 📈 Matriz de Performance Individual com ONDULAÇÕES
+            # 📈 Matriz de Performance Individual - MAPEAMENTO CORRIGIDO
             st.subheader("📈 Matriz de Performance Individual")
             
             df_h = df_raw.iloc[26:211, 0:33].copy()
             days_cols = [f"D{i:02d}" for i in range(1, 32)]
             df_h.columns = ["Nome", "Métrica"] + days_cols
-            df_h['Métrica'] = df_h['Métrica'].replace({"LIGAÇÃO": "INTERAÇÃO"})
 
             performance_list = []
             for op_nome in rk['Nome'].unique():
                 op_data = df_h[df_h['Nome'].apply(norm).str.contains(norm(op_nome.split()[0]), na=False)]
                 row_perf = {"Operador": op_nome}
                 
-                for met in ["META", "CSAT", "TPC", "INTERAÇÃO", "IR", "PONTUALIDADE"]:
-                    met_row = op_data[op_data['Métrica'].apply(norm) == norm(met)]
+                # Mapeamento técnico: Busca 'LIGAÇÃO' mas exibe 'Interação'
+                mapping = {"META": "Sparkline (Meta)", "CSAT": "Csat", "TPC": "Tpc", "LIGAÇÃO": "Interação", "IR": "Ir", "PONTUALIDADE": "Pontualidade"}
+                
+                for sheet_name, display_name in mapping.items():
+                    met_row = op_data[op_data['Métrica'].apply(norm) == norm(sheet_name)]
                     if not met_row.empty:
                         vals = [to_f(v) for v in met_row.iloc[0, 2:].values]
                         
-                        if met == "META":
-                            # LÓGICA DAS ONDULAÇÕES: Mantém o histórico desde o dia 1
-                            # Localiza o último dia com dado para o "bico" ser fiel
+                        if sheet_name == "META":
+                            # LÓGICA DAS ONDULAÇÕES (Mantendo o histórico real)
                             last_idx = 0
                             for i, val in enumerate(vals):
                                 if val > 0: last_idx = i
-                            
-                            # A Sparkline recebe do dia 1 até o último preenchido para criar as ondas
                             row_perf["Sparkline (Meta)"] = vals[:last_idx+1] if any(vals) else [0]
                             
-                            # SETAS DE TENDÊNCIA NA META ATUAL
+                            # SETAS DE TENDÊNCIA (Meta Atual)
                             history = [v for v in vals if v > 0]
                             if len(history) >= 2:
                                 curr, prev = history[-1], history[-2]
                                 arrow = " 🟢 ▲" if curr > prev else (" 🔴 ▼" if curr < prev else "")
-                                row_perf["Meta Atual"] = f"{curr:g}%{arrow}".replace('.',',')
+                                row_perf["Meta (Tendência)"] = f"{curr:g}%{arrow}".replace('.',',')
                             else:
-                                row_perf["Meta Atual"] = f"{history[-1]:g}%".replace('.',',') if history else "0%"
+                                row_perf["Meta (Tendência)"] = f"{history[-1]:g}%".replace('.',',') if history else "0%"
                         else:
                             curr_list = [v for v in vals if v > 0]
-                            row_perf[met.title()] = f"{curr_list[-1]:g}%".replace('.',',') if curr_list else "0%"
+                            row_perf[display_name] = f"{curr_list[-1]:g}%".replace('.',',') if curr_list else "0%"
                     else:
-                        if met == "META": row_perf["Sparkline (Meta)"] = [0]; row_perf["Meta Atual"] = "0%"
-                        row_perf[met.title()] = "0%"
+                        if sheet_name == "META": 
+                            row_perf["Sparkline (Meta)"] = [0]
+                            row_perf["Meta (Tendência)"] = "0%"
+                        row_perf[display_name] = "0%"
                 
                 performance_list.append(row_perf)
 
@@ -139,8 +138,8 @@ else:
                 column_config={
                     "Operador": st.column_config.TextColumn("Nome do Operador", width="medium"),
                     "Sparkline (Meta)": st.column_config.LineChartColumn("Tendência Meta", y_min=0, y_max=100),
-                    "Meta Atual": st.column_config.TextColumn("Meta (Tendência)"),
-                    "Interação": st.column_config.TextColumn("Interação (Ligação)")
+                    "Meta (Tendência)": st.column_config.TextColumn("Meta Atual"),
+                    "Interação": st.column_config.TextColumn("Interação (Ligação)") # Puxando de 'Ligação'
                 },
                 hide_index=True,
                 use_container_width=True
@@ -159,11 +158,11 @@ else:
                 for col in days_cols: t_disp[col] = t_disp[col].apply(lambda v: f"{to_f(v):g}%".replace('.', ','))
                 st.dataframe(t_disp, use_container_width=True, hide_index=True)
                 
-                # Gráfico Diário Profissional (1-31) com Números Fixos
+                # Gráfico Diário (1-31) com Números Fixos
                 st.markdown("---")
                 sel_m = st.multiselect("Visualizar métricas:", audit['Métrica'].unique().tolist(), default=audit['Métrica'].unique().tolist())
                 fig = go.Figure()
-                for m_name in sel_m:
+                for m_name in sel_met:
                     row = audit[audit['Métrica'] == m_name].iloc[0]
                     xr = np.array([int(d.replace("D","")) for d in days_cols])
                     yr = np.array([to_f(row[d]) for d in days_cols])
