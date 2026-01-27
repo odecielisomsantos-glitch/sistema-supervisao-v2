@@ -2,27 +2,26 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import unicodedata
-import plotly.express as px
+import plotly.graph_objects as go
 import numpy as np
 
-# 1. SETUP E ESTADO
+# 1. Configuração de Elite
 st.set_page_config(page_title="Atlas Gestão", page_icon="👔", layout="wide", initial_sidebar_state="collapsed")
 
 if 'dark' not in st.session_state: st.session_state.dark = True
-if 'mural' not in st.session_state: st.session_state.mural = "Foco total!"
+if 'mural' not in st.session_state: st.session_state.mural = "Foco total na operação!"
 if 'auth' not in st.session_state: st.session_state.auth = False
 
-def toggle(): st.session_state.dark = not st.session_state.dark
 def logout(): st.session_state.clear(); st.rerun()
 
-# 2. DESIGN SYSTEM DE ALTO CONTRASTE
+# 2. Design System de Alto Contraste
 is_dark = st.session_state.dark
 c = {
     "bg": "#0E1117" if is_dark else "#F0F2F6", 
     "card": "#1F2937" if is_dark else "#FFFFFF",
-    "tx": "#FFFFFF" if is_dark else "#111827", # Branco puro no escuro para nitidez
+    "tx": "#FFFFFF" if is_dark else "#111827", 
     "tx_sec": "#9CA3AF" if is_dark else "#4B5563",
-    "brd": "#30363D" if is_dark else "#E5E7EB"
+    "brd": "#30363D" if is_dark else "#D1D5DB"
 }
 
 st.markdown(f"""
@@ -37,14 +36,13 @@ st.markdown(f"""
     .card {{ position: relative; background: {c['card']}; padding: 15px; border-radius: 12px; border: 1px solid {c['brd']}; text-align: center; height: 175px; color: {c['tx']}; }}
     .av {{ width: 45px; height: 45px; background: #22D3EE; color: #083344; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-weight: 800; }}
     .main-content {{ margin-top: 70px; padding: 0 40px; }}
-    
-    /* Correção de fontes apagadas */
+    /* Garante visibilidade das fontes em todos os estados */
     .stMarkdown, p, h1, h2, h3, h4, span, label, li {{ color: {c['tx']} !important; }}
     [data-testid="stMetricValue"] {{ color: #F97316 !important; font-weight: 900 !important; }}
     </style>
 """, unsafe_allow_html=True)
 
-# 3. MOTOR DE DADOS
+# 3. Motor de Dados
 @st.cache_data(ttl=60)
 def get_data(aba):
     try: return st.connection("gsheets", type=GSheetsConnection).read(worksheet=aba, ttl=0, header=None)
@@ -59,7 +57,7 @@ def to_f(v):
         return f * 100 if f <= 1.05 else f
     except: return 0.0
 
-def format_audit_cell(v):
+def format_cell(v):
     if pd.isna(v) or str(v).strip() in ["", "0", "0%"]: return "0%"
     f = to_f(v)
     return f"{f:g}%".replace('.', ',')
@@ -71,14 +69,15 @@ def get_style(metric, val_str):
     if m == "PONTUALIDADE": return "#10B981" if v >= 90 else ("#FACC15" if v >= 85 else "#F97316")
     return "#F97316"
 
-# --- LOGIN ---
+# --- TELA DE LOGIN ---
 if not st.session_state.auth:
     _, cent, _ = st.columns([1, 1.2, 1])
     with cent.container():
         st.markdown(f'<div style="background:{c["card"]}; padding:40px; border-radius:15px; border:1px solid {c["brd"]}; text-align:center; margin-top:100px;">', unsafe_allow_html=True)
-        st.subheader("Atlas - Acesso")
+        st.subheader("Atlas - Acesso ao Portal")
         with st.form("login"):
-            u_in, p_in = st.text_input("Usuário").lower().strip(), st.text_input("Senha", type="password")
+            u_in = st.text_input("Usuário").lower().strip()
+            p_in = st.text_input("Senha", type="password")
             if st.form_submit_button("ACESSAR SISTEMA", use_container_width=True):
                 df_u = get_data("Usuarios").iloc[1:]; df_u.columns = ['U','P','N','F']
                 match = df_u[(df_u['U'].astype(str) == u_in) & (df_u['P'].astype(str) == p_in)]
@@ -87,21 +86,22 @@ if not st.session_state.auth:
                     st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-# --- DASHBOARDS ---
+# --- PORTAL ---
 else:
-    u = st.session_state.user
-    role, p_nome = str(u['F']).upper().strip(), u['N'].upper().split()[0]
+    u, role = st.session_state.user, str(st.session_state.user['F']).upper().strip()
+    p_nome = u['N'].upper().split()[0]
     
     st.markdown(f'<div class="nav"><b style="color:#F97316; font-size:20px">ATLAS {"GESTÃO" if role != "OPERADOR" else ""}</b><div style="font-size:11px">{u["N"]} | {role}</div></div>', unsafe_allow_html=True)
+    
     with st.sidebar: 
-        st.button("Sair", on_click=logout, use_container_width=True)
-        # CHAVE SELETORA DE TEMA RESTAURADA
-        st.toggle("🌙 Modo Noturno", value=st.session_state.dark, on_change=toggle)
+        st.button("🚪 Sair", on_click=logout, use_container_width=True)
+        st.toggle("🌙 Modo Noturno", value=st.session_state.dark, key="theme_tgl", on_change=lambda: st.session_state.update(dark=not st.session_state.dark))
 
     df_raw = get_data("DADOS-DIA")
     rk = df_raw.iloc[1:24, [0, 1]].dropna()
     rk.columns = ["Nome", "M_Str"]; rk['N'] = rk['M_Str'].apply(to_f)
 
+    # VISÃO GESTOR
     if role in ["GESTOR", "GESTÃO"]:
         st.markdown('<div class="main-content">', unsafe_allow_html=True)
         st.header(f"📊 Painel de Gestão Atlas")
@@ -109,18 +109,18 @@ else:
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Média Equipe", f"{rk['N'].mean():.1f}%".replace('.',','))
         c2.metric("Coroas (80%+)", f"{len(rk[rk['N']>=80])} 👑")
-        c3.metric("Foco Crítico (<70%)", len(rk[rk['N']<70]))
-        c4.metric("Operadores Ativos", len(rk))
+        c3.metric("Foco Crítico", len(rk[rk['N']<70]))
+        c4.metric("Ativos", len(rk))
         
-        tab_view, tab_mural, tab_audit = st.tabs(["🎯 Radar da Equipe", "📢 Central de Avisos", "🔍 Auditoria por Operador"])
+        tab_v, tab_m, tab_a = st.tabs(["🎯 Radar", "📢 Mural", "🔍 Auditoria"])
         
-        with tab_view: st.dataframe(rk.sort_values("N", ascending=False)[["Nome", "M_Str"]], use_container_width=True, hide_index=True)
-        with tab_mural:
+        with tab_v: st.dataframe(rk.sort_values("N", ascending=False)[["Nome", "M_Str"]], use_container_width=True, hide_index=True)
+        with tab_m:
             st.session_state.mural = st.text_area("Aviso no Sininho:", value=st.session_state.mural)
             if st.button("Disparar"): st.success("Atualizado!")
             
-        with tab_audit:
-            st.subheader("Auditoria Detalhada (A27:AG211)")
+        with tab_a:
+            st.subheader("Auditoria por Operador")
             op_sel = st.selectbox("Selecione o Operador:", rk["Nome"].unique())
             if op_sel:
                 df_h = df_raw.iloc[26:211, 0:33].copy()
@@ -130,52 +130,51 @@ else:
                 
                 audit_filt = df_h[df_h['Nome'].apply(norm).str.contains(norm(op_sel.split()[0]), na=False)].copy()
                 table_disp = audit_filt.copy()
-                for col in days: table_disp[col] = table_disp[col].apply(format_audit_cell)
+                for col in days: table_disp[col] = table_disp[col].apply(format_cell)
                 st.dataframe(table_disp, use_container_width=True, hide_index=True)
                 
+                # Analytics Clean com TENDÊNCIA GERAL ÚNICA
                 st.markdown("---")
-                st.subheader(f"📈 Analytics de Evolução: {op_sel}")
+                st.subheader(f"📈 Evolução: {op_sel}")
+                cs, ct = st.columns([3, 1])
+                with cs: sel_m = st.multiselect("Métricas:", audit_filt['Métrica'].unique().tolist(), default=audit_filt['Métrica'].unique().tolist())
+                with ct: st.write(""); show_t = st.toggle("📊 Tendência Geral", value=False)
                 
-                # Seletor e Botão de Tendência Opcional
-                cl, cr = st.columns([3, 1])
-                with cl:
-                    metrics_av = audit_filt['Métrica'].unique().tolist()
-                    sel_metrics = st.multiselect("Filtrar métricas:", metrics_av, default=metrics_av)
-                with cr:
-                    st.write("") # Alinhamento
-                    show_t = st.toggle("📊 Exibir Tendência", value=False)
+                fig = go.Figure()
+                trend_x, trend_y = [], [] # Coletores para a tendência geral
+
+                for m_name in sel_m:
+                    row = audit_filt[audit_filt['Métrica'] == m_name].iloc[0]
+                    xr = np.array([int(d.replace("D","")) for d in days])
+                    yr = np.array([to_f(row[d]) for d in days])
+                    mask = yr > 0 
+                    if any(mask):
+                        fig.add_trace(go.Scatter(x=xr[mask], y=yr[mask], name=m_name, mode='lines+markers', hovertemplate='%{y:.2f}%<extra></extra>'))
+                        if show_t: # Coleta dados para a tendência geral se ativado
+                             trend_x.extend(xr[mask])
+                             trend_y.extend(yr[mask])
                 
-                chart_data = []
-                for _, row in audit_filt[audit_filt['Métrica'].isin(sel_metrics)].iterrows():
-                    m_name = row['Métrica']
-                    for i, d in enumerate(days):
-                        val = to_f(row[d])
-                        if val > 0 or not show_t: # Filtro para não sujar o gráfico
-                            chart_data.append({"Dia": d.replace("D",""), "Métrica": m_name, "Valor": val, "Label": f"{val:g}%".replace('.',',')})
-                
-                if chart_data:
-                    df_px = pd.DataFrame(chart_data)
-                    fig = px.line(df_px, x="Dia", y="Valor", color="Métrica", markers=True, 
-                                 template="plotly_dark" if is_dark else "plotly_white")
+                # Adiciona UMA ÚNICA linha de tendência geral se houver dados suficientes
+                if show_t and len(trend_x) > 1:
+                    trend_x = np.array(trend_x)
+                    trend_y = np.array(trend_y)
+                    # Ordena para garantir a linha reta
+                    sort_idx = np.argsort(trend_x)
+                    trend_x_sorted = trend_x[sort_idx]
+                    trend_y_sorted = trend_y[sort_idx]
                     
-                    # Linha de Tendência solicitada: Só aparece se ativado e corta o gráfico
-                    if show_t:
-                        for m in sel_metrics:
-                            m_df = df_px[df_px['Métrica'] == m]
-                            if len(m_df) > 1:
-                                x = np.arange(len(m_df))
-                                y = m_df['Valor'].values
-                                z = np.polyfit(x, y, 1)
-                                p = np.poly1d(z)
-                                fig.add_scatter(x=m_df['Dia'], y=p(x), name=f"Tendência {m}", line=dict(dash='dash', width=2), opacity=0.5)
+                    z = np.polyfit(trend_x_sorted, trend_y_sorted, 1)
+                    p = np.poly1d(z)
+                    # Linha branca/preta grossa e tracejada, estilo Excel
+                    trend_color = "white" if is_dark else "black"
+                    fig.add_trace(go.Scatter(x=trend_x_sorted, y=p(trend_x_sorted), name="Tendência Geral", mode='lines', line=dict(dash='dash', width=3, color=trend_color), opacity=0.8))
 
-                    fig.update_layout(yaxis_range=[0, 105], margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-                    st.plotly_chart(fig, use_container_width=True)
-
+                fig.update_layout(template="plotly_dark" if is_dark else "plotly_white", yaxis_range=[0, 105], margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+                st.plotly_chart(fig, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
+    # VISÃO OPERADOR (ESTÁVEL)
     else:
-        # VISÃO OPERADOR (CONGELADA)
         df_h = df_raw.iloc[26:211, 0:33].copy()
         m_map, m_data = {"INTERAÇÃO": "LIGAÇÃO"}, {}
         u_block = df_h[df_h.iloc[:, 0].apply(norm).str.contains(p_nome, na=False)]
@@ -186,7 +185,7 @@ else:
                 vals = [v for v in row.iloc[0, 2:].tolist() if pd.notna(v) and str(v).strip() not in ["", "0", "0%"]]
                 curr = vals[-1] if vals else "0%"; prev = vals[-2] if len(vals) > 1 else curr
                 arr = '▲' if to_f(curr) > to_f(prev) else ('▼' if to_f(curr) < to_f(prev) else "")
-                m_data[m] = {"val": f"{to_f(curr):g}%".replace('.',','), "arr": arr, "col": get_style(m, curr)}
+                m_data[m] = {"val": format_cell(curr), "arr": arr, "col": get_style(m, curr)}
             else: m_data[m] = {"val": "0%", "arr": "", "col": "#F97316"}
 
         st.markdown('<div class="m-strip">', unsafe_allow_html=True)
@@ -209,7 +208,7 @@ else:
         st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
         cc = st.columns(8); rk_cards = rk.sort_values("N", ascending=False).reset_index(drop=True)
         for i, row in rk_cards.iterrows():
-            crw = '👑' if row['N'] >= 80 else ''
+            crown = '👑' if row['N'] >= 80 else ''
             ini = "".join([n[0] for n in str(row['Nome']).split()[:2]]).upper()
-            with cc[i % 8]: st.markdown(f'<div class="card"><div style="font-size:20px; position:absolute; top:-10px; left:40%">{crw}</div><div class="av">{ini}</div><div style="font-size:10px;font-weight:700">{row["Nome"][:13]}</div><b style="color:{"#10B981" if row["N"] >= 80 else "#EF4444"}; font-size:18px">{row["M_Str"]}</b></div>', unsafe_allow_html=True)
+            with cc[i % 8]: st.markdown(f'<div class="card"><div style="font-size:20px; position:absolute; top:-10px; left:40%">{crown}</div><div class="av">{ini}</div><div style="font-size:10px;font-weight:700">{row["Nome"][:13]}</div><b style="color:{"#10B981" if row["N"] >= 80 else "#EF4444"}; font-size:18px">{row["M_Str"]}</b></div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
