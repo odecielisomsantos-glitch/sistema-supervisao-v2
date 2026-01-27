@@ -5,7 +5,7 @@ import unicodedata
 import plotly.graph_objects as go
 import numpy as np
 
-# 1. SETUP DE ELITE - TEMA BRANCO E ESTABILIDADE
+# 1. SETUP DE ELITE - TEMA BRANCO OBRIGATÓRIO
 st.set_page_config(page_title="Atlas Gestão", page_icon="👔", layout="wide", initial_sidebar_state="collapsed")
 
 if 'mural' not in st.session_state: st.session_state.mural = "Foco total na operação!"
@@ -28,6 +28,7 @@ st.markdown("""
     .av { width: 45px; height: 45px; background: #22D3EE; color: #083344; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-weight: 800; }
     .main-content { margin-top: 70px; padding: 0 40px; }
     [data-testid="stMetricValue"] { color: #F97316 !important; font-weight: 900 !important; }
+    .stTabs [data-baseweb="tab"] { color: #111827 !important; font-weight: 700 !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -72,11 +73,13 @@ if not st.session_state.auth:
                 if not match.empty:
                     st.session_state.auth, st.session_state.user = True, match.iloc[0].to_dict(); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
+
+# --- DASHBOARDS ---
 else:
     u = st.session_state.user
     role, p_nome = str(u['F']).upper().strip(), u['N'].upper().split()[0]
     st.markdown(f'<div class="nav"><b style="color:#F97316; font-size:20px">ATLAS {"GESTÃO" if role != "OPERADOR" else ""}</b><div style="font-size:11px; color:#111827">{u["N"]} | {role}</div></div>', unsafe_allow_html=True)
-    with st.sidebar: st.button("Sair", on_click=logout, use_container_width=True)
+    with st.sidebar: st.button("🚪 Sair", on_click=logout, use_container_width=True)
 
     df_raw = get_data("DADOS-DIA")
     rk = df_raw.iloc[1:24, [0, 1]].dropna()
@@ -85,7 +88,7 @@ else:
     # VISÃO GESTOR
     if role in ["GESTOR", "GESTÃO"]:
         st.markdown('<div class="main-content">', unsafe_allow_html=True)
-        st.header("📊 Painel de Gestão")
+        st.header("📊 Painel de Gestão Atlas")
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Média Equipe", f"{rk['N'].mean():.1f}%".replace('.',','))
         c2.metric("Coroas (80%+)", f"{len(rk[rk['N']>=80])} 👑")
@@ -93,17 +96,16 @@ else:
         
         tab_v, tab_m, tab_a = st.tabs(["🎯 Radar da Equipe", "📢 Mural", "🔍 Auditoria"])
         with tab_v:
-            # AJUSTE: Ranking ocupando METADE da tela
-            col_l, _ = st.columns([1, 1])
+            col_l, _ = st.columns([1, 1]) # Tabela ocupando metade do site
             with col_l:
-                st.subheader("Ranking da Operação")
+                st.subheader("Ranking Geral")
                 st.dataframe(rk.sort_values("N", ascending=False)[["Nome", "M_Str"]], use_container_width=True, hide_index=True)
         with tab_m:
             st.session_state.mural = st.text_area("Aviso:", value=st.session_state.mural)
             if st.button("Disparar"): st.success("Feito!")
         with tab_a:
             st.subheader("Auditoria por Operador")
-            op_sel = st.selectbox("Operador:", rk["Nome"].unique())
+            op_sel = st.selectbox("Selecione o Operador:", rk["Nome"].unique())
             if op_sel:
                 df_h = df_raw.iloc[26:211, 0:33].copy()
                 days = [f"D{i:02d}" for i in range(1, 32)]
@@ -114,23 +116,42 @@ else:
                 for col in days: t_disp[col] = t_disp[col].apply(format_cell)
                 st.dataframe(t_disp, use_container_width=True, hide_index=True)
                 
-                # GRÁFICO COM NÚMEROS FIXOS E EIXO DIÁRIO (1-31)
+                # --- GRÁFICO PROFISSIONAL (BASEADO NO LARANJA) ---
                 st.markdown("---")
-                sel_m = st.multiselect("Métricas:", audit['Métrica'].unique().tolist(), default=audit['Métrica'].unique().tolist())
-                fig = go.Figure()
-                for m_name in sel_m:
-                    row = audit[audit['Métrica'] == m_name].iloc[0]
-                    xr, yr = np.array([int(d.replace("D","")) for d in days]), np.array([to_f(row[d]) for d in days])
-                    mask = yr > 0
-                    if any(mask):
-                        fig.add_trace(go.Scatter(x=xr[mask], y=yr[mask], name=m_name, mode='lines+markers+text', 
-                                                 text=[f"{v:g}%".replace('.', ',') for v in yr[mask]],
-                                                 textposition="top center", textfont=dict(size=9), hovertemplate='%{y:.2f}%'))
+                st.subheader(f"📈 Gráfico de Evolução Diária: {op_sel}")
+                sel_met = st.multiselect("Visualizar métricas:", audit['Métrica'].unique().tolist(), default=audit['Métrica'].unique().tolist())
                 
-                # CORREÇÃO DEFINITIVA DO EIXO X PARA VISUALIZAÇÃO DIÁRIA (1, 2, 3...)
-                fig.update_layout(template="plotly_white", yaxis_range=[0, 115], 
-                                  xaxis=dict(tickmode='linear', tick0=1, dtick=1, range=[0.5, 31.5]),
-                                  margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+                fig = go.Figure()
+                for m_name in sel_met:
+                    row = audit[audit['Métrica'] == m_name].iloc[0]
+                    xr = np.array([int(d.replace("D","")) for d in days])
+                    yr = np.array([to_f(row[d]) for d in days])
+                    
+                    # Garantir que todos os dias (01 a 31) apareçam no eixo
+                    fig.add_trace(go.Scatter(
+                        x=xr, y=yr, name=m_name, 
+                        mode='lines+markers+text', # Visualização com pontos e números
+                        text=[f"{v:g}%".replace('.', ',') if v > 0 else "" for v in yr], # Porcentagem fixa nos pontos
+                        textposition="top center", 
+                        textfont=dict(size=9, color='#111827'),
+                        hovertemplate='Dia %{x}: %{y:.2f}%<extra></extra>'
+                    ))
+                
+                # Layout idêntico à imagem laranja sugerida
+                fig.update_layout(
+                    template="plotly_white", 
+                    yaxis_range=[-5, 115], # Margem para os rótulos não cortarem
+                    xaxis=dict(
+                        tickmode='linear', 
+                        tick0=1, 
+                        dtick=1, 
+                        range=[0.5, 31.5],
+                        title="Dias do Mês"
+                    ),
+                    yaxis_title="Percentual (%)",
+                    margin=dict(l=0, r=0, t=30, b=0), 
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
                 st.plotly_chart(fig, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
