@@ -22,6 +22,7 @@ st.markdown("""
     .stMarkdown, p, h1, h2, h3, h4, span, label, li { color: #111827 !important; font-weight: 500; }
     .m-strip { margin-top: 55px; padding: 12px 40px; background: #F9FAFB; border-bottom: 1px solid #E5E7EB; display: flex; align-items: center; justify-content: space-between; }
     .m-val { font-size: 22px; font-weight: 900; color: #F97316; }
+    .card { background: #FFFFFF; padding: 15px; border-radius: 12px; border: 1px solid #E5E7EB; text-align: center; height: 175px; color: #111827; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
     .main-content { margin-top: 70px; padding: 0 40px; }
     [data-testid="stMetricValue"] { color: #F97316 !important; font-weight: 900 !important; }
     </style>
@@ -77,33 +78,40 @@ else:
         tab_v, tab_m, tab_a = st.tabs(["🎯 Radar da Equipe", "📢 Mural", "🔍 Auditoria"])
         
         with tab_v:
-            # --- LAYOUT DIVIDIDO: RANKING E PIZZA ---
+            # --- LAYOUT SIMÉTRICO: RANKING E PIZZA PROFISSIONAL ---
             col_rk, col_pie = st.columns([1, 1])
             
             with col_rk:
                 st.subheader("Ranking Geral")
-                st.dataframe(rk.sort_values("N", ascending=False)[["Nome", "M_Str"]], use_container_width=True, hide_index=True)
+                st.dataframe(rk.sort_values("N", ascending=False)[["Nome", "M_Str"]], use_container_width=True, hide_index=True, height=350)
             
             with col_pie:
                 st.subheader("Distribuição de Performance")
-                # Lógica de Categorização
                 v_high = len(rk[rk['N'] >= 80])
                 v_mid = len(rk[(rk['N'] >= 70) & (rk['N'] < 80)])
                 v_low = len(rk[rk['N'] < 70])
                 
+                # Gráfico com fontes aumentadas e design minimalista
                 fig_pie = go.Figure(data=[go.Pie(
                     labels=['80% ou mais', '70% a 79,99%', 'Abaixo de 70%'],
                     values=[v_high, v_mid, v_low],
-                    hole=.4,
-                    marker_colors=['#10B981', '#FACC15', '#EF4444'], # Verde, Amarelo e Vermelho
-                    textinfo='value+percent'
+                    hole=.45, # Estilo Donut minimalista
+                    marker_colors=['#10B981', '#FACC15', '#EF4444'],
+                    textinfo='value+percent',
+                    textfont=dict(size=16, color="#111827", family="Inter, sans-serif"), # Fonte aumentada e nítida
+                    insidetextorientation='horizontal'
                 )])
-                fig_pie.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=300, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2))
+                fig_pie.update_layout(
+                    margin=dict(t=10, b=10, l=10, r=10), 
+                    height=350, # Altura casada com a tabela para simetria
+                    showlegend=True, 
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5, font=dict(size=12))
+                )
                 st.plotly_chart(fig_pie, use_container_width=True)
             
             st.markdown("---")
             
-            # 📈 Matriz de Performance Individual (Ligação -> Interação)
+            # 📈 Matriz de Performance (Mapeamento Ligação -> Interação)
             st.subheader("📈 Matriz de Performance Individual")
             df_h = df_raw.iloc[26:211, 0:33].copy()
             days_cols = [f"D{i:02d}" for i in range(1, 32)]
@@ -113,7 +121,6 @@ else:
             for op_nome in rk['Nome'].unique():
                 op_data = df_h[df_h['Nome'].apply(norm).str.contains(norm(op_nome.split()[0]), na=False)]
                 row_perf = {"Operador": op_nome}
-                # Mapeamento técnico: Busca 'LIGAÇÃO' mas exibe 'Interação'
                 mapping = {"META": "Sparkline (Meta)", "CSAT": "Csat", "TPC": "Tpc", "LIGAÇÃO": "Interação", "IR": "Ir", "PONTUALIDADE": "Pontualidade"}
                 
                 for sheet_name, display_name in mapping.items():
@@ -136,18 +143,17 @@ else:
                             curr_list = [v for v in vals if v > 0]
                             row_perf[display_name] = f"{curr_list[-1]:g}%".replace('.',',') if curr_list else "0%"
                     else:
-                        if sheet_name == "META": 
-                            row_perf["Sparkline (Meta)"] = [0]; row_perf["Meta (Tendência)"] = "0%"
+                        if sheet_name == "META": row_perf["Sparkline (Meta)"] = [0]; row_perf["Meta (Tendência)"] = "0%"
                         row_perf[display_name] = "0%"
                 performance_list.append(row_perf)
 
             st.dataframe(
                 pd.DataFrame(performance_list),
                 column_config={
-                    "Operador": st.column_config.TextColumn("Nome do Operador", width="medium"),
-                    "Sparkline (Meta)": st.column_config.LineChartColumn("Tendência Meta", y_min=0, y_max=100),
+                    "Operador": st.column_config.TextColumn("Nome", width="medium"),
+                    "Sparkline (Meta)": st.column_config.LineChartColumn("Evolução Meta", y_min=0, y_max=100),
                     "Meta (Tendência)": st.column_config.TextColumn("Meta Atual"),
-                    "Interação": st.column_config.TextColumn("Interação (Ligação)")
+                    "Interação": st.column_config.TextColumn("Interação")
                 },
                 hide_index=True, use_container_width=True
             )
@@ -175,4 +181,5 @@ else:
         st.markdown('</div>', unsafe_allow_html=True)
 
     else:
-        st.markdown('<div class="main-content">Dashboard Operacional Blindado</div>', unsafe_allow_html=True)
+        # VISÃO OPERADOR (INTEGRAL E PROTEGIDA)
+        st.markdown('<div class="main-content">Dashboard Operacional Ativo</div>', unsafe_allow_html=True)
