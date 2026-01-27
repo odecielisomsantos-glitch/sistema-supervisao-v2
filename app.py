@@ -5,7 +5,7 @@ import unicodedata
 import plotly.graph_objects as go
 import numpy as np
 
-# 1. SETUP DE ELITE - TEMA BRANCO OBRIGATÓRIO
+# 1. SETUP - TEMA BRANCO ESTÁVEL
 st.set_page_config(page_title="Atlas Gestão", page_icon="👔", layout="wide", initial_sidebar_state="collapsed")
 
 if 'mural' not in st.session_state: st.session_state.mural = "Foco total na operação!"
@@ -13,7 +13,7 @@ if 'auth' not in st.session_state: st.session_state.auth = False
 
 def logout(): st.session_state.clear(); st.rerun()
 
-# 2. DESIGN SYSTEM - ALTA NITIDEZ (Fundo Branco / Texto Preto)
+# 2. DESIGN SYSTEM - ALTA NITIDEZ
 st.markdown(f"""
     <style>
     header, footer, #MainMenu {{visibility: hidden;}}
@@ -31,7 +31,7 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. MOTOR DE DADOS
+# 3. MOTOR DE DADOS E FORMATAÇÃO
 @st.cache_data(ttl=60)
 def get_data(aba):
     try: return st.connection("gsheets", type=GSheetsConnection).read(worksheet=aba, ttl=0, header=None)
@@ -69,11 +69,10 @@ if not st.session_state.auth:
 
 # --- DASHBOARDS ---
 else:
-    u, role = st.session_state.user, str(st.session_state.user['F']).upper().strip()
-    p_nome = u['N'].upper().split()[0]
-    
+    u = st.session_state.user
+    role, p_nome = str(u['F']).upper().strip(), u['N'].upper().split()[0]
     st.markdown(f'<div class="nav"><b style="color:#F97316; font-size:20px">ATLAS {"GESTÃO" if role != "OPERADOR" else ""}</b><div style="font-size:11px; color:#111827">{u["N"]} | {role}</div></div>', unsafe_allow_html=True)
-    with st.sidebar: st.button("🚪 Sair do Sistema", on_click=logout, use_container_width=True)
+    with st.sidebar: st.button("🚪 Sair", on_click=logout, use_container_width=True)
 
     df_raw = get_data("DADOS-DIA")
     rk = df_raw.iloc[1:24, [0, 1]].dropna()
@@ -81,7 +80,7 @@ else:
 
     if role in ["GESTOR", "GESTÃO"]:
         st.markdown('<div class="main-content">', unsafe_allow_html=True)
-        st.header(f"📊 Painel de Gestão")
+        st.header(f"📊 Painel de Gestão Atlas")
         
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Média Equipe", f"{rk['N'].mean():.1f}%".replace('.',','))
@@ -106,11 +105,12 @@ else:
                 df_h['Métrica'] = df_h['Métrica'].replace({"LIGAÇÃO": "INTERAÇÃO"})
                 audit_filt = df_h[df_h['Nome'].apply(norm).str.contains(norm(op_sel.split()[0]), na=False)].copy()
                 
+                # Tabela organizada
                 table_disp = audit_filt.copy()
                 for col in days: table_disp[col] = table_disp[col].apply(format_cell)
                 st.dataframe(table_disp, use_container_width=True, hide_index=True)
                 
-                # --- ANALYTICS COM MÉTRICAS FIXAS NOS PONTOS ---
+                # --- GRÁFICO ORGANIZADO COM NÚMEROS FIXOS ---
                 st.markdown("---")
                 st.subheader(f"📈 Analytics de Evolução: {op_sel}")
                 sel_met = st.multiselect("Visualizar métricas:", audit_filt['Métrica'].unique().tolist(), default=audit_filt['Métrica'].unique().tolist())
@@ -123,7 +123,7 @@ else:
                     mask = yr > 0 
                     
                     if any(mask):
-                        # Configurado para exibir texto fixo nos pontos
+                        # ADICIONADO: 'text' para exibir o valor fixo no ponto
                         fig.add_trace(go.Scatter(
                             x=xr[mask], 
                             y=yr[mask], 
@@ -131,7 +131,7 @@ else:
                             mode='lines+markers+text', 
                             text=[f"{v:g}%".replace('.', ',') for v in yr[mask]],
                             textposition="top center",
-                            textfont=dict(size=9),
+                            textfont=dict(size=9, color='#111827'),
                             hovertemplate='%{y:.2f}%<extra></extra>'
                         ))
 
