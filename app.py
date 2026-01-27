@@ -5,7 +5,7 @@ import unicodedata
 import plotly.graph_objects as go
 import numpy as np
 
-# 1. SETUP - TEMA BRANCO OBRIGATÓRIO (SEM ALTERNÂNCIA)
+# 1. SETUP - TEMA BRANCO OBRIGATÓRIO
 st.set_page_config(page_title="Atlas Gestão", page_icon="👔", layout="wide", initial_sidebar_state="collapsed")
 
 if 'mural' not in st.session_state: st.session_state.mural = "Foco total na operação!"
@@ -13,7 +13,7 @@ if 'auth' not in st.session_state: st.session_state.auth = False
 
 def logout(): st.session_state.clear(); st.rerun()
 
-# 2. DESIGN SYSTEM - ALTO CONTRASTE E ORGANIZAÇÃO
+# 2. DESIGN SYSTEM - ALTA NITIDEZ (Fundo Branco / Texto Escuro)
 st.markdown("""
     <style>
     header, footer, #MainMenu {visibility: hidden;}
@@ -31,7 +31,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. MOTOR DE DADOS E FORMATAÇÃO
+# 3. MOTOR DE DADOS
 @st.cache_data(ttl=60)
 def get_data(aba):
     try: return st.connection("gsheets", type=GSheetsConnection).read(worksheet=aba, ttl=0, header=None)
@@ -71,7 +71,7 @@ if not st.session_state.auth:
 else:
     u = st.session_state.user
     role, p_nome = str(u['F']).upper().strip(), u['N'].upper().split()[0]
-    st.markdown(f'<div class="nav"><b style="color:#F97316; font-size:20px">ATLAS {"GESTÃO" if role != "OPERADOR" else ""}</b><div style="font-size:11px; color:#111827">{u["N"]} | {role}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="nav"><b style="color:#F97316; font-size:20px">ATLAS GESTÃO</b><div style="font-size:11px; color:#111827">{u["N"]} | {role}</div></div>', unsafe_allow_html=True)
     with st.sidebar: st.button("🚪 Sair", on_click=logout, use_container_width=True)
 
     df_raw = get_data("DADOS-DIA")
@@ -88,12 +88,10 @@ else:
         c3.metric("Foco Crítico", len(rk[rk['N']<70]))
         c4.metric("Ativos", len(rk))
         
-        tab_v, tab_m, tab_a = st.tabs(["🎯 Radar da Equipe", "📢 Central de Avisos", "🔍 Auditoria por Operador"])
+        tab_v, tab_m, tab_a = st.tabs(["🎯 Radar da Equipe", "📢 Mural de Avisos", "🔍 Auditoria por Operador"])
         
         with tab_v: 
-            # Ordenação segura para evitar KeyError
-            rk_sorted = rk.sort_values("N", ascending=False)
-            st.dataframe(rk_sorted[["Nome", "M_Str"]], use_container_width=True, hide_index=True)
+            st.dataframe(rk.sort_values("N", ascending=False)[["Nome", "M_Str"]], use_container_width=True, hide_index=True)
             
         with tab_m:
             st.session_state.mural = st.text_area("Aviso no Sininho:", value=st.session_state.mural)
@@ -113,7 +111,7 @@ else:
                 for col in days: table_disp[col] = table_disp[col].apply(format_cell)
                 st.dataframe(table_disp, use_container_width=True, hide_index=True)
                 
-                # --- GRÁFICO ORGANIZADO COM MÉTRICAS FIXAS ---
+                # --- GRÁFICO LIMPO COM NÚMEROS FIXOS ---
                 st.markdown("---")
                 st.subheader(f"📈 Analytics de Evolução: {op_sel}")
                 sel_met = st.multiselect("Visualizar métricas:", audit_filt['Métrica'].unique().tolist(), default=audit_filt['Métrica'].unique().tolist())
@@ -126,7 +124,6 @@ else:
                     mask = yr > 0 
                     
                     if any(mask):
-                        # FIXADO: 'text' adicionado para exibir os valores fixos nos pontos
                         fig.add_trace(go.Scatter(
                             x=xr[mask], 
                             y=yr[mask], 
@@ -135,7 +132,7 @@ else:
                             text=[f"{v:g}%".replace('.', ',') for v in yr[mask]],
                             textposition="top center",
                             textfont=dict(size=9, color='#111827'),
-                            hovertemplate='%{y:.2f}%<extra></extra>'
+                            hovertemplate='<b>%{text}</b><extra></extra>'
                         ))
 
                 fig.update_layout(template="plotly_white", yaxis_range=[0, 115], margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
@@ -143,37 +140,4 @@ else:
         st.markdown('</div>', unsafe_allow_html=True)
 
     else:
-        # VISÃO OPERADOR (ESTÁVEL E LIMPA)
-        df_h = df_raw.iloc[26:211, 0:33].copy()
-        u_block = df_h[df_h.iloc[:, 0].apply(norm).str.contains(p_nome, na=False)]
-        m_map, m_data = {"INTERAÇÃO": "LIGAÇÃO"}, {}
-        for m in ["CSAT", "TPC", "INTERAÇÃO", "IR", "PONTUALIDADE", "META"]:
-            row = u_block[u_block.iloc[:, 1].apply(norm) == norm(m_map.get(m, m))]
-            if not row.empty:
-                v_list = [v for v in row.iloc[0, 2:].tolist() if pd.notna(v) and str(v).strip() not in ["", "0", "0%"]]
-                curr = v_list[-1] if v_list else "0%"; prev = v_list[-2] if len(v_list) > 1 else curr
-                arr = '▲' if to_f(curr) > to_f(prev) else ('▼' if to_f(curr) < to_f(prev) else "")
-                m_data[m] = {"val": format_cell(curr), "arr": arr}
-            else: m_data[m] = {"val": "0%", "arr": ""}
-
-        st.markdown('<div class="m-strip">', unsafe_allow_html=True)
-        cols_m = st.columns([0.4, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 0.4])
-        with cols_m[0]: 
-            with st.popover("🔔"): st.info(st.session_state.mural)
-        for i, mk in enumerate(["CSAT", "TPC", "INTERAÇÃO", "IR", "PONTUALIDADE", "META"]):
-            d = m_data[mk]
-            with cols_m[i+1]: st.markdown(f'<div class="m-box"><div class="m-lab">{mk}</div><div class="m-val">{d["val"]} {d["arr"]}</div></div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        st.markdown('<div style="padding:20px 40px">', unsafe_allow_html=True)
-        cl, cr = st.columns(2)
-        with cl: 
-            st.markdown("### 🏆 Ranking")
-            st.dataframe(rk.sort_values("N", ascending=False)[["Nome", "M_Str"]], use_container_width=True, hide_index=True, height=380)
-        with cr:
-            st.markdown("### 📈 Evolução Meta")
-            u_meta = u_block[u_block.iloc[:, 1].apply(norm) == "META"]
-            if not u_meta.empty: 
-                y_meta = [to_f(v) for v in u_meta.iloc[0, 2:].values]
-                st.line_chart(pd.DataFrame({"Dia": [f"{i:02d}" for i in range(1, 32)], "Meta": y_meta}).set_index("Dia"), color="#F97316")
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div class="main-content">Módulo Operador Ativo</div>', unsafe_allow_html=True)
