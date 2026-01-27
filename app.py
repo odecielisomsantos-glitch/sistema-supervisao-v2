@@ -5,7 +5,7 @@ import unicodedata
 import plotly.graph_objects as go
 import numpy as np
 
-# 1. SETUP - TEMA BRANCO ESTÁVEL
+# 1. SETUP - TEMA BRANCO OBRIGATÓRIO (SEM ALTERNÂNCIA)
 st.set_page_config(page_title="Atlas Gestão", page_icon="👔", layout="wide", initial_sidebar_state="collapsed")
 
 if 'mural' not in st.session_state: st.session_state.mural = "Foco total na operação!"
@@ -13,21 +13,21 @@ if 'auth' not in st.session_state: st.session_state.auth = False
 
 def logout(): st.session_state.clear(); st.rerun()
 
-# 2. DESIGN SYSTEM - ALTA NITIDEZ
-st.markdown(f"""
+# 2. DESIGN SYSTEM - ALTO CONTRASTE E ORGANIZAÇÃO
+st.markdown("""
     <style>
-    header, footer, #MainMenu {{visibility: hidden;}}
-    .stApp {{ background-color: #FFFFFF; color: #111827; font-family: 'Inter', sans-serif; }}
-    .nav {{ position: fixed; top: 0; left: 0; width: 100%; height: 55px; background: #FFFFFF; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; z-index: 1001; border-bottom: 1px solid #E5E7EB; }}
-    .stMarkdown, p, h1, h2, h3, h4, span, label, li {{ color: #111827 !important; font-weight: 500; }}
-    .m-strip {{ margin-top: 55px; padding: 12px 40px; background: #F9FAFB; border-bottom: 1px solid #E5E7EB; display: flex; align-items: center; justify-content: space-between; }}
-    .m-box {{ text-align: center; flex: 1; border-right: 1px solid #E5E7EB; padding: 5px; }}
-    .m-lab {{ font-size: 11px; color: #4B5563; font-weight: 800; text-transform: uppercase; }}
-    .m-val {{ font-size: 22px; font-weight: 900; color: #F97316; }}
-    .card {{ position: relative; background: #FFFFFF; padding: 15px; border-radius: 12px; border: 1px solid #E5E7EB; text-align: center; height: 175px; color: #111827; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
-    .av {{ width: 45px; height: 45px; background: #22D3EE; color: #083344; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-weight: 800; }}
-    .main-content {{ margin-top: 70px; padding: 0 40px; }}
-    [data-testid="stMetricValue"] {{ color: #F97316 !important; font-weight: 900 !important; }}
+    header, footer, #MainMenu {visibility: hidden;}
+    .stApp { background-color: #FFFFFF; color: #111827; font-family: 'Inter', sans-serif; }
+    .nav { position: fixed; top: 0; left: 0; width: 100%; height: 55px; background: #FFFFFF; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; z-index: 1001; border-bottom: 1px solid #E5E7EB; }
+    .stMarkdown, p, h1, h2, h3, h4, span, label, li { color: #111827 !important; font-weight: 500; }
+    .m-strip { margin-top: 55px; padding: 12px 40px; background: #F9FAFB; border-bottom: 1px solid #E5E7EB; display: flex; align-items: center; justify-content: space-between; }
+    .m-box { text-align: center; flex: 1; border-right: 1px solid #E5E7EB; padding: 5px; }
+    .m-lab { font-size: 11px; color: #4B5563; font-weight: 800; text-transform: uppercase; }
+    .m-val { font-size: 22px; font-weight: 900; color: #F97316; }
+    .card { position: relative; background: #FFFFFF; padding: 15px; border-radius: 12px; border: 1px solid #E5E7EB; text-align: center; height: 175px; color: #111827; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .av { width: 45px; height: 45px; background: #22D3EE; color: #083344; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-weight: 800; }
+    .main-content { margin-top: 70px; padding: 0 40px; }
+    [data-testid="stMetricValue"] { color: #F97316 !important; font-weight: 900 !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -55,7 +55,7 @@ def format_cell(v):
 if not st.session_state.auth:
     _, cent, _ = st.columns([1, 1.2, 1])
     with cent.container():
-        st.markdown(f'<div style="background:#F9FAFB; padding:40px; border-radius:15px; border:1px solid #E5E7EB; text-align:center; margin-top:100px;">', unsafe_allow_html=True)
+        st.markdown('<div style="background:#F9FAFB; padding:40px; border-radius:15px; border:1px solid #E5E7EB; text-align:center; margin-top:100px;">', unsafe_allow_html=True)
         st.subheader("Atlas - Acesso ao Portal")
         with st.form("login"):
             u_in = st.text_input("Usuário").lower().strip()
@@ -80,7 +80,7 @@ else:
 
     if role in ["GESTOR", "GESTÃO"]:
         st.markdown('<div class="main-content">', unsafe_allow_html=True)
-        st.header(f"📊 Painel de Gestão Atlas")
+        st.header("📊 Painel de Gestão Atlas")
         
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Média Equipe", f"{rk['N'].mean():.1f}%".replace('.',','))
@@ -90,7 +90,11 @@ else:
         
         tab_v, tab_m, tab_a = st.tabs(["🎯 Radar da Equipe", "📢 Central de Avisos", "🔍 Auditoria por Operador"])
         
-        with tab_v: st.dataframe(rk.sort_values("N", ascending=False)[["Nome", "M_Str"]], use_container_width=True, hide_index=True)
+        with tab_v: 
+            # Ordenação segura para evitar KeyError
+            rk_sorted = rk.sort_values("N", ascending=False)
+            st.dataframe(rk_sorted[["Nome", "M_Str"]], use_container_width=True, hide_index=True)
+            
         with tab_m:
             st.session_state.mural = st.text_area("Aviso no Sininho:", value=st.session_state.mural)
             if st.button("Disparar Mural"): st.success("Atualizado!")
@@ -105,12 +109,11 @@ else:
                 df_h['Métrica'] = df_h['Métrica'].replace({"LIGAÇÃO": "INTERAÇÃO"})
                 audit_filt = df_h[df_h['Nome'].apply(norm).str.contains(norm(op_sel.split()[0]), na=False)].copy()
                 
-                # Tabela organizada
                 table_disp = audit_filt.copy()
                 for col in days: table_disp[col] = table_disp[col].apply(format_cell)
                 st.dataframe(table_disp, use_container_width=True, hide_index=True)
                 
-                # --- GRÁFICO ORGANIZADO COM NÚMEROS FIXOS ---
+                # --- GRÁFICO ORGANIZADO COM MÉTRICAS FIXAS ---
                 st.markdown("---")
                 st.subheader(f"📈 Analytics de Evolução: {op_sel}")
                 sel_met = st.multiselect("Visualizar métricas:", audit_filt['Métrica'].unique().tolist(), default=audit_filt['Métrica'].unique().tolist())
@@ -123,7 +126,7 @@ else:
                     mask = yr > 0 
                     
                     if any(mask):
-                        # ADICIONADO: 'text' para exibir o valor fixo no ponto
+                        # FIXADO: 'text' adicionado para exibir os valores fixos nos pontos
                         fig.add_trace(go.Scatter(
                             x=xr[mask], 
                             y=yr[mask], 
@@ -137,15 +140,13 @@ else:
 
                 fig.update_layout(template="plotly_white", yaxis_range=[0, 115], margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                 st.plotly_chart(fig, use_container_width=True)
-
         st.markdown('</div>', unsafe_allow_html=True)
 
     else:
-        # VISÃO OPERADOR (ESTÁVEL)
+        # VISÃO OPERADOR (ESTÁVEL E LIMPA)
         df_h = df_raw.iloc[26:211, 0:33].copy()
         u_block = df_h[df_h.iloc[:, 0].apply(norm).str.contains(p_nome, na=False)]
-        m_map = {"INTERAÇÃO": "LIGAÇÃO"}
-        m_data = {}
+        m_map, m_data = {"INTERAÇÃO": "LIGAÇÃO"}, {}
         for m in ["CSAT", "TPC", "INTERAÇÃO", "IR", "PONTUALIDADE", "META"]:
             row = u_block[u_block.iloc[:, 1].apply(norm) == norm(m_map.get(m, m))]
             if not row.empty:
@@ -166,9 +167,13 @@ else:
         
         st.markdown('<div style="padding:20px 40px">', unsafe_allow_html=True)
         cl, cr = st.columns(2)
-        with cl: st.markdown("### 🏆 Ranking"); st.dataframe(rk.sort_values("N", ascending=False)[["Nome", "M_Str"]], use_container_width=True, hide_index=True, height=380)
+        with cl: 
+            st.markdown("### 🏆 Ranking")
+            st.dataframe(rk.sort_values("N", ascending=False)[["Nome", "M_Str"]], use_container_width=True, hide_index=True, height=380)
         with cr:
-            st.markdown(f"### 📈 Evolução Meta")
+            st.markdown("### 📈 Evolução Meta")
             u_meta = u_block[u_block.iloc[:, 1].apply(norm) == "META"]
-            if not u_meta.empty: st.line_chart(pd.DataFrame({"Dia": [f"{i:02d}" for i in range(1, 32)], "Meta": [to_f(v) for v in u_meta.iloc[0, 2:].values]}).set_index("Dia"), color="#F97316")
+            if not u_meta.empty: 
+                y_meta = [to_f(v) for v in u_meta.iloc[0, 2:].values]
+                st.line_chart(pd.DataFrame({"Dia": [f"{i:02d}" for i in range(1, 32)], "Meta": y_meta}).set_index("Dia"), color="#F97316")
         st.markdown('</div>', unsafe_allow_html=True)
