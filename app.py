@@ -27,18 +27,13 @@ st.markdown("""
     .m-val { font-size: 22px; font-weight: 900; color: #F97316; }
     .podium-card { background: #FFFFFF; padding: 15px; border-radius: 12px; border: 1px solid #E5E7EB; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: all 0.4s ease; margin-bottom: 10px; }
     .podium-card:hover { transform: translateY(-8px); border-color: #F97316; }
-    .podium-gold { border-top: 5px solid #FACC15; }
-    .podium-silver { border-top: 5px solid #94A3B8; }
-    .podium-bronze { border-top: 5px solid #D97706; }
-    .podium-critical { border-top: 5px solid #EF4444; }
     .card { position: relative; background: #FFFFFF; padding: 15px; border-radius: 12px; border: 1px solid #E5E7EB; text-align: center; height: 175px; color: #111827; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
     .av { width: 45px; height: 45px; background: #22D3EE; color: #083344; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-weight: 800; }
     .main-content { margin-top: 70px; padding: 0 40px; }
-    [data-testid="stMetricValue"] { color: #F97316 !important; font-weight: 900 !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# 3. MOTOR DE DADOS E CONVERSORES
+# 3. MOTOR DE DADOS E CONVERSORES ANALÍTICOS
 @st.cache_data(ttl=60)
 def get_data(aba):
     try: return st.connection("gsheets", type=GSheetsConnection).read(worksheet=aba, ttl=0, header=None)
@@ -64,18 +59,6 @@ def parse_val_gb(v, is_time=False):
         return minutos + (segundos / 60.0)
     try: return float(s.replace('%', ''))
     except: return 0.0
-
-def format_cell(v):
-    if pd.isna(v) or str(v).strip() in ["", "0", "0%"]: return "0%"
-    f = to_f(v)
-    return f"{f:g}%".replace('.', ',')
-
-def get_style(metric, val_str):
-    v, m = to_f(val_str), norm(metric)
-    if m in ["CSAT", "IR", "INTERACAO", "META"]: return "#10B981" if v >= 80 else ("#FACC15" if v >= 70 else "#F97316")
-    if m == "TPC": return "#10B981" if v >= 95 else ("#FACC15" if v >= 90 else "#F97316")
-    if m == "PONTUALIDADE": return "#10B981" if v >= 90 else ("#FACC15" if v >= 85 else "#F97316")
-    return "#F97316"
 
 def render_podium_card(row, rank_type, medal_icon, main_color="#10B981"):
     return f"""
@@ -115,11 +98,9 @@ else:
     df_raw = get_data("DADOS-DIA")
     rk = df_raw.iloc[1:24, [0, 1]].dropna()
     rk.columns = ["Nome", "M_Str"]; rk['N'] = rk['M_Str'].apply(to_f)
+    df_h = df_raw.iloc[26:211, 0:33].copy(); days_cols = [f"D{i:02d}" for i in range(1, 32)]; df_h.columns = ["Nome", "Métrica"] + days_cols
 
-    # PROCESSAMENTO DE DADOS GERAL
-    df_h = df_raw.iloc[26:211, 0:33].copy()
-    days_cols = [f"D{i:02d}" for i in range(1, 32)]
-    df_h.columns = ["Nome", "Métrica"] + days_cols
+    # Processamento Pódio 3D
     perf_list = []
     for op_n in rk['Nome'].unique():
         op_d = df_h[df_h['Nome'].apply(norm).str.contains(norm(op_n.split()[0]), na=False)]
@@ -132,16 +113,15 @@ else:
                 if s_n == "META":
                     last_idx = max([i for i, v in enumerate(vals) if v > 0] + [0])
                     row_p["Sparkline (Meta)"] = vals[:last_idx+1]
-                    hist = [v for v in vals if v > 0]
-                    if len(hist) >= 2:
-                        arr = " 🟢 ▲" if hist[-1] > hist[-2] else (" 🔴 ▼" if hist[-1] < hist[-2] else "")
-                        row_p["Meta Atual"] = f"{hist[-1]:g}%{arr}".replace('.',',')
-                    else: row_p["Meta Atual"] = f"{hist[-1]:g}%".replace('.',',') if hist else "0%"
-                    row_p["_RawMeta"] = hist[-1] if hist else 0
+                    hist_vals = [v for v in vals if v > 0]
+                    if len(hist_vals) >= 2:
+                        arr = " 🟢 ▲" if hist_vals[-1] > hist_vals[-2] else (" 🔴 ▼" if hist_vals[-1] < hist_vals[-2] else "")
+                        row_p["Meta Atual"] = f"{hist_vals[-1]:g}%{arr}".replace('.',',')
+                    else: row_p["Meta Atual"] = f"{hist_vals[-1]:g}%".replace('.',',') if hist_vals else "0%"
+                    row_p["_Raw"] = hist_vals[-1] if hist_vals else 0
                 else: row_p[d_n] = f"{[v for v in vals if v > 0][-1]:g}%".replace('.',',') if any(v > 0 for v in vals) else "0%"
-            else: row_p[d_n] = "0%"
         perf_list.append(row_p)
-    df_final_podium = pd.DataFrame(perf_list).sort_values("_RawMeta", ascending=False).reset_index(drop=True)
+    df_podium = pd.DataFrame(perf_list).sort_values("_Raw", ascending=False).reset_index(drop=True)
 
     # --- ÁREA GESTOR ---
     if role in ["GESTOR", "GESTÃO"]:
@@ -150,19 +130,16 @@ else:
         
         with tab_v:
             col_rk, col_pie = st.columns(2)
-            with col_rk: st.subheader("Ranking"); st.dataframe(rk.sort_values("N", ascending=False), hide_index=True, use_container_width=True, height=350)
+            with col_rk: st.subheader("Ranking"); st.dataframe(rk.sort_values("N", ascending=False), hide_index=True, use_container_width=True)
             with col_pie:
                 v_h, v_m, v_l = len(rk[rk['N']>=80]), len(rk[(rk['N']>=70)&(rk['N']<80)]), len(rk[rk['N']<70])
                 fig_p = go.Figure(data=[go.Pie(labels=['80%+', '70-79%', '<70%'], values=[v_h, v_m, v_l], hole=.45, marker_colors=['#10B981', '#FACC15', '#EF4444'])])
-                fig_p.update_layout(height=350, margin=dict(t=0, b=0, l=0, r=0))
                 st.plotly_chart(fig_p, use_container_width=True)
-            
-            st.markdown("---")
-            st.subheader("🥇 Pódio de Elite")
-            c_g = st.columns(3)
-            for i, (t, ic) in enumerate(zip(["gold","silver","bronze"], ["🥇","🥈","🥉"])):
-                if i < len(df_final_podium):
-                    with c_g[i]: st.markdown(render_podium_card(df_final_podium.iloc[i], t, ic), unsafe_allow_html=True)
+            st.markdown("---"); st.subheader("🥇 Pódio de Elite")
+            c_g = st.columns(3); icons, types = ["🥇","🥈","🥉"], ["gold","silver","bronze"]
+            for i in range(3):
+                if i < len(df_podium):
+                    with c_g[i]: st.markdown(render_podium_card(df_podium.iloc[i], types[i], icons[i]), unsafe_allow_html=True)
 
         with tab_m:
             st.session_state.mural = st.text_area("Aviso:", value=st.session_state.mural)
@@ -170,71 +147,63 @@ else:
         
         with tab_a:
             st.subheader("Auditoria por Operador")
-            op_sel = st.selectbox("Selecione Colaborador Auditoria:", rk["Nome"].unique())
+            op_sel = st.selectbox("Operador Auditoria:", rk["Nome"].unique())
             if op_sel:
                 aud_data = df_h[df_h['Nome'].apply(norm).str.contains(norm(op_sel.split()[0]), na=False)].copy()
-                sel_met_aud = st.multiselect("Métricas Auditoria:", aud_data['Métrica'].unique().tolist(), default=aud_data['Métrica'].unique().tolist())
                 fig_aud = go.Figure()
-                for m_n in sel_met_aud:
+                for m_n in aud_data['Métrica'].unique():
                     row = aud_data[aud_data['Métrica'] == m_n].iloc[0]
                     xr = np.array([int(d.replace("D","")) for d in days_cols])
                     yr = np.array([to_f(row[d]) for d in days_cols])
-                    fig_aud.add_trace(go.Scatter(x=xr, y=yr, name=m_n, mode='lines+markers+text', 
-                                                 text=[f"{v:g}%".replace('.',',') if v > 0 else "" for v in yr],
-                                                 textposition="top center", textfont=dict(size=9)))
+                    fig_aud.add_trace(go.Scatter(x=xr, y=yr, name=m_n, mode='lines+markers+text', text=[f"{v:g}%".replace('.',',') if v > 0 else "" for v in yr], textposition="top center", textfont=dict(size=9)))
                 fig_aud.update_layout(template="plotly_white", yaxis_range=[-5, 115], xaxis=dict(tickmode='linear', dtick=1, range=[0.5, 31.5]), margin=dict(l=0, r=0, t=30, b=0))
                 st.plotly_chart(fig_aud, use_container_width=True)
-        
-        # --- ABA GB NO FORMATO AUDITORIA ---
+
+        # --- ABA GB: FILTRO DUPLO E GRÁFICO DIÁRIO ---
         with tab_gb:
-            st.subheader("📊 Dashboard Analítico GB (Formato Auditoria)")
+            st.subheader("📊 Dashboard Analítico GB")
             df_gb_raw = get_data("RELATÓRIO")
             if df_gb_raw is not None:
                 df_gb = df_gb_raw.iloc[24:177, 2:35].copy(); df_gb.columns = ["Nome", "Métrica"] + days_cols
-                op_gb_sel = st.selectbox("Selecione o Operador para Visualização GB:", df_gb["Nome"].unique())
                 
-                if op_gb_sel:
-                    rows_gb = df_gb[df_gb["Nome"] == op_gb_sel]
-                    fig_gb = go.Figure()
-                    xr_gb = np.array([int(d.replace("D","")) for d in days_cols])
-                    
-                    # 📈 MÉTRICAS DE TEMPO (Eixo Y1 - Esquerdo)
-                    t_m = {"Conversação média": "#F97316", "Tratamento médio": "#FB923C", "Espera média": "#FDBA74"}
-                    for m, c in t_m.items():
-                        r = rows_gb[rows_gb["Métrica"].str.contains(m, na=False, case=False)]
-                        if not r.empty:
-                            y_v = [parse_val_gb(r[d].values[0], True) for d in days_cols]
-                            fig_gb.add_trace(go.Scatter(x=xr_gb, y=y_v, name=m, mode='lines+markers+text', 
-                                                       text=[f"{v:.1f}m".replace('.',',') if v > 0 else "" for v in y_v], 
-                                                       textposition="top center", textfont=dict(size=9), line=dict(color=c, width=2)))
-                    
-                    # 📉 MÉTRICAS DE QUALIDADE (Eixo Y2 - Direito)
-                    q_m = {"Conformidade": "#10B981", "Aderência": "#3B82F6"}
-                    for m, c in q_m.items():
-                        r = rows_gb[rows_gb["Métrica"].str.contains(m, na=False, case=False)]
-                        if not r.empty:
-                            y_v = [parse_val_gb(r[d].values[0]) for d in days_cols]
-                            fig_gb.add_trace(go.Scatter(x=xr_gb, y=y_v, name=m, yaxis="y2", mode='lines+markers+text',
-                                                       text=[f"{v:g}%".replace('.',',') if v > 0 else "" for v in y_v], 
-                                                       textposition="bottom center", textfont=dict(size=9, color=c), line=dict(color=c, width=3, dash='dot')))
-
-                    fig_gb.update_layout(template="plotly_white", hovermode="x unified",
-                                      yaxis=dict(title="Tempo (Minutos)", range=[-0.5, 15]),
-                                      yaxis2=dict(title="Porcentagem (%)", overlaying="y", side="right", range=[-5, 115], showgrid=False),
-                                      xaxis=dict(title="Dias do Mês", tickmode='linear', dtick=1, range=[0.5, 31.5]),
-                                      margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", y=1.1))
-                    st.plotly_chart(fig_gb, use_container_width=True)
+                # BARRA DE SELEÇÃO DUPLA
+                c_sel1, c_sel2 = st.columns(2)
+                with c_sel1: op_gb = st.selectbox("1. Selecione o Operador:", df_gb["Nome"].unique(), key="gb_op")
+                with c_sel2: met_gb = st.selectbox("2. Selecione a Métrica:", ["Conversação média", "Tratamento médio", "Espera média", "Conformidade", "Aderência"], key="gb_met")
+                
+                if op_gb and met_gb:
+                    # Estudo visual diário (1-31)
+                    rows_gb = df_gb[(df_gb["Nome"] == op_gb) & (df_gb["Métrica"].str.contains(met_gb, na=False, case=False))]
+                    if not rows_gb.empty:
+                        r = rows_gb.iloc[0]
+                        is_t = "médio" in met_gb.lower() or "conversação" in met_gb.lower()
+                        y_vals = [parse_val_gb(r[d], is_t) for d in days_cols]
+                        xr_gb = np.array([int(d.replace("D","")) for d in days_cols])
+                        
+                        fig_gb = go.Figure()
+                        color_gb = "#F97316" if is_t else "#10B981"
+                        suffix = "m" if is_t else "%"
+                        
+                        fig_gb.add_trace(go.Scatter(x=xr_gb, y=y_vals, name=met_gb, mode='lines+markers+text',
+                                                   text=[f"{v:.1f}{suffix}".replace('.',',') if v > 0 else "" for v in y_vals],
+                                                   textposition="top center", textfont=dict(size=10, color="#111827"),
+                                                   line=dict(color=color_gb, width=3), marker=dict(size=8)))
+                        
+                        fig_gb.update_layout(template="plotly_white", 
+                                          yaxis=dict(title=met_gb, range=[0, 15] if is_t else [0, 110]),
+                                          xaxis=dict(title="Dias do Mês", tickmode='linear', dtick=1, range=[0.5, 31.5]),
+                                          margin=dict(l=0, r=0, t=30, b=0))
+                        st.plotly_chart(fig_gb, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # VISÃO OPERADOR
+    # VISÃO OPERADOR (INTEGRAL E BLINDADA)
     else:
         st.markdown('<div class="main-content">', unsafe_allow_html=True)
         st.subheader("🥇 Hall da Fama - Elite Atlas")
-        c_pod_op = st.columns(3)
-        for i, (t, ic) in enumerate(zip(["gold","silver","bronze"], ["🥇","🥈","🥉"])):
-            if i < len(df_final_podium):
-                with c_pod_op[i]: st.markdown(render_podium_card(df_final_podium.iloc[i], t, ic), unsafe_allow_html=True)
-        
+        c_pod_op = st.columns(3); icons, types = ["🥇","🥈","🥉"], ["gold","silver","bronze"]
+        for i in range(3):
+            if i < len(df_podium):
+                with c_pod_op[i]: st.markdown(render_podium_card(df_podium.iloc[i], types[i], icons[i]), unsafe_allow_html=True)
         st.markdown("---")
         u_block = df_h[df_h.iloc[:, 0].apply(norm).str.contains(p_nome, na=False)]
         m_map, m_data = {"INTERAÇÃO": "LIGAÇÃO"}, {}
@@ -243,24 +212,21 @@ else:
             if not row.empty:
                 v_l = [v for v in row.iloc[0, 2:].tolist() if pd.notna(v) and str(v).strip() not in ["", "0", "0%"]]
                 curr = v_l[-1] if v_l else "0%"; prev = v_l[-2] if len(v_l) > 1 else curr
-                m_data[m] = {"val": format_cell(curr), "arr": '▲' if to_f(curr) > to_f(prev) else ('▼' if to_f(curr) < to_f(prev) else ""), "col": get_style(m, curr)}
+                m_data[m] = {"val": f"{to_f(curr):g}%".replace('.',','), "arr": '▲' if to_f(curr) > to_f(prev) else ('▼' if to_f(curr) < to_f(prev) else ""), "col": "#10B981" if to_f(curr) >= 80 else "#F97316"}
             else: m_data[m] = {"val": "0%", "arr": "", "col": "#F97316"}
-
         st.markdown('<div class="m-strip" style="margin-top:0px">', unsafe_allow_html=True)
         cols_m = st.columns([0.4, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 0.4])
         for i, mk in enumerate(["CSAT", "TPC", "INTERAÇÃO", "IR", "PONTUALIDADE", "META"]):
             with cols_m[i+1]: st.markdown(f'<div class="m-box"><div class="m-lab">{mk}</div><div class="m-val" style="color:{m_data[mk]["col"]}">{m_data[mk]["val"]} {m_data[mk]["arr"]}</div></div>', unsafe_allow_html=True)
         st.markdown('</div><div style="padding:20px 40px">', unsafe_allow_html=True)
-        
         cl, cr = st.columns(2)
-        with cl: st.markdown("### 🏆 Ranking"); st.dataframe(rk.sort_values("N", ascending=False)[["Nome", "M_Str"]], use_container_width=True, hide_index=True, height=380)
+        with cl: st.markdown("### 🏆 Ranking"); st.dataframe(rk.sort_values("N", ascending=False), use_container_width=True, hide_index=True, height=380)
         with cr:
             st.markdown(f"### 📈 Evolução Meta")
             u_meta_op = u_block[u_block.iloc[:, 1].apply(norm) == "META"]
             if not u_meta_op.empty:
                 y_meta = [to_f(v) for v in u_meta_op.iloc[0, 2:].values]
                 st.line_chart(pd.DataFrame({"Dia": [f"{i:02d}" for i in range(1, 32)], "Meta": y_meta}).set_index("Dia"), color="#F97316")
-        
         st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
         cc = st.columns(8); rk_grid = rk.sort_values("N", ascending=False).reset_index(drop=True)
         for i, row in rk_grid.iterrows():
