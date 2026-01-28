@@ -5,7 +5,7 @@ import unicodedata
 import plotly.graph_objects as go
 import numpy as np
 
-# 1. SETUP DE ELITE - TEMA BRANCO E ESTABILIDADE TOTAL
+# 1. SETUP DE ELITE - TEMA BRANCO INTEGRAL
 st.set_page_config(page_title="Atlas Gestão", page_icon="👔", layout="wide", initial_sidebar_state="collapsed")
 
 if 'mural' not in st.session_state: st.session_state.mural = "Foco total na operação!"
@@ -13,7 +13,7 @@ if 'auth' not in st.session_state: st.session_state.auth = False
 
 def logout(): st.session_state.clear(); st.rerun()
 
-# 2. DESIGN SYSTEM - TEMA BRANCO (ALTO CONTRASTE)
+# 2. DESIGN SYSTEM - ALTA NITIDEZ E PÓDIO MINIMALISTA
 st.markdown("""
     <style>
     header, footer, #MainMenu {visibility: hidden;}
@@ -21,11 +21,20 @@ st.markdown("""
     .nav { position: fixed; top: 0; left: 0; width: 100%; height: 55px; background: #FFFFFF; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; z-index: 1001; border-bottom: 1px solid #E5E7EB; }
     .stMarkdown, p, h1, h2, h3, h4, span, label, li { color: #111827 !important; font-weight: 500; }
     .m-strip { margin-top: 55px; padding: 12px 40px; background: #F9FAFB; border-bottom: 1px solid #E5E7EB; display: flex; align-items: center; justify-content: space-between; }
-    .m-box { text-align: center; flex: 1; border-right: 1px solid #E5E7EB; padding: 5px; }
-    .m-lab { font-size: 11px; color: #4B5563; font-weight: 800; text-transform: uppercase; }
-    .m-val { font-size: 22px; font-weight: 900; color: #F97316; }
-    .card { position: relative; background: #FFFFFF; padding: 15px; border-radius: 12px; border: 1px solid #E5E7EB; text-align: center; height: 175px; color: #111827; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .av { width: 45px; height: 45px; background: #22D3EE; color: #083344; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-weight: 800; }
+    
+    /* Estilo do Pódio Profissional */
+    .podium-card { background: #FFFFFF; padding: 20px; border-radius: 12px; border: 1px solid #E5E7EB; text-align: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transition: 0.3s; }
+    .podium-gold { border-top: 5px solid #FACC15; }
+    .podium-silver { border-top: 5px solid #94A3B8; }
+    .podium-bronze { border-top: 5px solid #D97706; }
+    .podium-critical { border-top: 5px solid #EF4444; }
+    
+    .podium-name { font-size: 14px; font-weight: 800; margin-bottom: 10px; color: #111827; text-transform: uppercase; }
+    .podium-metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; border-top: 1px solid #F3F4F6; padding-top: 10px; }
+    .podium-item { text-align: left; }
+    .podium-label { font-size: 9px; color: #6B7280; font-weight: 700; text-transform: uppercase; }
+    .podium-val { font-size: 12px; color: #111827; font-weight: 800; }
+    
     .main-content { margin-top: 70px; padding: 0 40px; }
     [data-testid="stMetricValue"] { color: #F97316 !important; font-weight: 900 !important; }
     </style>
@@ -51,13 +60,6 @@ def format_cell(v):
     f = to_f(v)
     return f"{f:g}%".replace('.', ',')
 
-def get_style(metric, val_str):
-    v, m = to_f(val_str), norm(metric)
-    if m in ["CSAT", "IR", "INTERACAO", "META"]: return "#10B981" if v >= 80 else ("#FACC15" if v >= 70 else "#F97316")
-    if m == "TPC": return "#10B981" if v >= 95 else ("#FACC15" if v >= 90 else "#F97316")
-    if m == "PONTUALIDADE": return "#10B981" if v >= 90 else ("#FACC15" if v >= 85 else "#F97316")
-    return "#F97316"
-
 # --- LOGIN ---
 if not st.session_state.auth:
     _, cent, _ = st.columns([1, 1.2, 1])
@@ -76,14 +78,14 @@ else:
     u = st.session_state.user
     role, p_nome = str(u['F']).upper().strip(), u['N'].upper().split()[0]
     st.markdown(f'<div class="nav"><b style="color:#F97316; font-size:20px">ATLAS GESTÃO</b><div style="font-size:11px; color:#111827">{u["N"]} | {role}</div></div>', unsafe_allow_html=True)
-    with st.sidebar: st.button("Sair do Sistema", on_click=logout, use_container_width=True)
+    with st.sidebar: st.button("🚪 Sair", on_click=logout, use_container_width=True)
 
     df_raw = get_data("DADOS-DIA")
     rk = df_raw.iloc[1:24, [0, 1]].dropna()
     rk.columns = ["Nome", "M_Str"]; rk['N'] = rk['M_Str'].apply(to_f)
 
     # =================================================================
-    # ÁREA DO GESTOR (AJUSTADA COM NOVA ABA GB)
+    # ÁREA DO GESTOR
     # =================================================================
     if role in ["GESTOR", "GESTÃO"]:
         st.markdown('<div class="main-content">', unsafe_allow_html=True)
@@ -93,7 +95,6 @@ else:
         c2.metric("Coroas (80%+)", f"{len(rk[rk['N']>=80])} 👑")
         c3.metric("Foco Crítico", len(rk[rk['N']<70])); c4.metric("Ativos", len(rk))
         
-        # Inclusão da página GB na seção de abas do gestor
         tab_v, tab_m, tab_a, tab_gb = st.tabs(["🎯 Radar da Equipe", "📢 Mural", "🔍 Auditoria", "📈 GB"])
         
         with tab_v:
@@ -113,11 +114,11 @@ else:
             df_h = df_raw.iloc[26:211, 0:33].copy()
             days_cols = [f"D{i:02d}" for i in range(1, 32)]
             df_h.columns = ["Nome", "Métrica"] + days_cols
+            
             perf_list = []
             for op_n in rk['Nome'].unique():
                 op_d = df_h[df_h['Nome'].apply(norm).str.contains(norm(op_n.split()[0]), na=False)]
                 row_p = {"Operador": op_n}
-                # Mapeamento: Busca 'LIGAÇÃO' mas exibe 'Interação'
                 map_m = {"META": "Sparkline (Meta)", "CSAT": "Csat", "TPC": "Tpc", "LIGAÇÃO": "Interação", "IR": "Ir", "PONTUALIDADE": "Pontualidade"}
                 for s_n, d_n in map_m.items():
                     met_r = op_d[op_d['Métrica'].apply(norm) == norm(s_n)]
@@ -131,23 +132,67 @@ else:
                                 arrow = " 🟢 ▲" if hist[-1] > hist[-2] else (" 🔴 ▼" if hist[-1] < hist[-2] else "")
                                 row_p["Meta Atual"] = f"{hist[-1]:g}%{arrow}".replace('.',',')
                             else: row_p["Meta Atual"] = f"{hist[-1]:g}%".replace('.',',') if hist else "0%"
+                            row_p["_RawMeta"] = hist[-1] if hist else 0
                         else:
                             curr = [v for v in vals if v > 0]
                             row_p[d_n] = f"{curr[-1]:g}%".replace('.',',') if curr else "0%"
                     else: row_p[d_n] = "0%"
                 perf_list.append(row_p)
-            st.dataframe(pd.DataFrame(perf_list), column_config={"Operador": st.column_config.TextColumn("Nome", width="medium"), "Sparkline (Meta)": st.column_config.LineChartColumn("Evolução Meta", y_min=0, y_max=100)}, hide_index=True, use_container_width=True)
+            
+            df_perf_final = pd.DataFrame(perf_list)
+            st.dataframe(df_perf_final.drop(columns=["_RawMeta"]), column_config={"Operador": st.column_config.TextColumn("Nome", width="medium"), "Sparkline (Meta)": st.column_config.LineChartColumn("Evolução Meta", y_min=0, y_max=100)}, hide_index=True, use_container_width=True)
+
+            # =================================================================
+            # NOVO: PÓDIO DOS 3 MELHORES E 3 PIORES
+            # =================================================================
+            st.markdown("---")
+            
+            # Dados para o Pódio
+            sorted_perf = df_perf_final.sort_values("_RawMeta", ascending=False).reset_index(drop=True)
+            top_3 = sorted_perf.head(3)
+            bottom_3 = sorted_perf.tail(3).iloc[::-1] # Inverte para mostrar o pior primeiro
+
+            def render_podium_card(row, rank_type, medal_icon):
+                style_class = f"podium-{rank_type}"
+                return f"""
+                <div class="podium-card {style_class}">
+                    <div style="font-size:30px">{medal_icon}</div>
+                    <div class="podium-name">{row['Operador'][:22]}</div>
+                    <b style="color:#F97316; font-size:18px">{row['Meta Atual']}</b>
+                    <div class="podium-metric-grid">
+                        <div class="podium-item"><div class="podium-label">CSAT</div><div class="podium-val">{row['Csat']}</div></div>
+                        <div class="podium-item"><div class="podium-label">TPC</div><div class="podium-val">{row['Tpc']}</div></div>
+                        <div class="podium-item"><div class="podium-label">INT.</div><div class="podium-val">{row['Interação']}</div></div>
+                        <div class="podium-item"><div class="podium-label">IR</div><div class="podium-val">{row['Ir']}</div></div>
+                    </div>
+                </div>
+                """
+
+            st.subheader("🥇 Pódio de Elite (Top 3 Performance)")
+            c_gold = st.columns(3)
+            icons = ["🥇", "🥈", "🥉"]
+            types = ["gold", "silver", "bronze"]
+            for i in range(3):
+                if i < len(top_3):
+                    with c_gold[i]: st.markdown(render_podium_card(top_3.iloc[i], types[i], icons[i]), unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.subheader("🔻 Foco Necessário (Base da Equipe)")
+            c_low = st.columns(3)
+            for i in range(3):
+                if i < len(bottom_3):
+                    with c_low[i]: st.markdown(render_podium_card(bottom_3.iloc[i], "critical", "📉"), unsafe_allow_html=True)
 
         with tab_m:
             st.session_state.mural = st.text_area("Aviso:", value=st.session_state.mural)
-            if st.button("Disparar Mural"): st.success("Atualizado!")
+            if st.button("Disparar"): st.success("Atualizado!")
         
         with tab_a:
             st.subheader("Auditoria por Operador")
             op_sel = st.selectbox("Selecione:", rk["Nome"].unique())
             if op_sel:
                 aud = df_h[df_h['Nome'].apply(norm).str.contains(norm(op_sel.split()[0]), na=False)].copy()
-                s_met = st.multiselect("Métricas:", aud['Métrica'].unique().tolist(), default=aud['Métrica'].unique().tolist())
+                s_met = st.multiselect("Métricas:", aud['Métrica'].unique().tolist(), default=audit['Métrica'].unique().tolist())
                 fig = go.Figure()
                 for m_n in s_met:
                     row = aud[aud['Métrica'] == m_n].iloc[0]
@@ -156,15 +201,13 @@ else:
                 fig.update_layout(template="plotly_white", yaxis_range=[-5, 115], xaxis=dict(tickmode='linear', dtick=1, range=[0.5, 31.5]), margin=dict(l=0, r=0, t=30, b=0))
                 st.plotly_chart(fig, use_container_width=True)
         
-        # --- NOVA PÁGINA GB (Página de visualização estratégica)
         with tab_gb:
             st.subheader("📊 Visualização de Dados Analíticos - GB")
-            st.info("Página GB inicializada. Pronta para vinculação de dados específicos da planilha.")
-
+            st.info("Página GB pronta para vinculação.")
         st.markdown('</div>', unsafe_allow_html=True)
 
     # =================================================================
-    # ÁREA DO OPERADOR (PRESERVADA E FUNCIONAL)
+    # ÁREA DO OPERADOR (PRESERVADA)
     # =================================================================
     else:
         df_h = df_raw.iloc[26:211, 0:33].copy()
@@ -179,11 +222,8 @@ else:
             else: m_data[m] = {"val": "0%", "arr": "", "col": "#F97316"}
         st.markdown('<div class="m-strip">', unsafe_allow_html=True)
         cols_m = st.columns([0.4, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 0.4])
-        with cols_m[0]: 
-            with st.popover("🔔"): st.info(st.session_state.mural)
         for i, mk in enumerate(["CSAT", "TPC", "INTERAÇÃO", "IR", "PONTUALIDADE", "META"]):
-            d = m_data[mk]
-            with cols_m[i+1]: st.markdown(f'<div class="m-box"><div class="m-lab">{mk}</div><div class="m-val" style="color:{d["col"]}">{d["val"]} {d["arr"]}</div></div>', unsafe_allow_html=True)
+            with cols_m[i+1]: st.markdown(f'<div class="m-box"><div class="m-lab">{mk}</div><div class="m-val" style="color:{m_data[mk]["col"]}">{m_data[mk]["val"]} {m_data[mk]["arr"]}</div></div>', unsafe_allow_html=True)
         st.markdown('</div><div style="padding:20px 40px">', unsafe_allow_html=True)
         cl, cr = st.columns(2)
         with cl: st.markdown("### 🏆 Ranking"); st.dataframe(rk.sort_values("N", ascending=False)[["Nome", "M_Str"]], use_container_width=True, hide_index=True, height=380)
@@ -193,9 +233,4 @@ else:
             if not u_meta.empty: 
                 y_meta = [to_f(v) for v in u_meta.iloc[0, 2:].values]
                 st.line_chart(pd.DataFrame({"Dia": [f"{i:02d}" for i in range(1, 32)], "Meta": y_meta}).set_index("Dia"), color="#F97316")
-        st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
-        cc = st.columns(8); rk_cards = rk.sort_values("N", ascending=False).reset_index(drop=True)
-        for i, row in rk_cards.iterrows():
-            ini = "".join([n[0] for n in str(row['Nome']).split()[:2]]).upper()
-            with cc[i % 8]: st.markdown(f'<div class="card"><div style="font-size:20px; position:absolute; top:-10px; left:40%">{"👑" if row["N"] >= 80 else ""}</div><div class="av">{ini}</div><div style="font-size:10px;font-weight:700">{row["Nome"][:13]}</div><b style="color:{"#10B981" if row["N"] >= 80 else "#EF4444"}; font-size:18px">{row["M_Str"]}</b></div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
